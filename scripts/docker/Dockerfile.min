@@ -11,7 +11,7 @@ RUN     apk --no-cache add !pyc \
             py3-jinja2
 
 COPY    i/dist/copyparty-sfx.py innvikler.sh ./
-RUN     ash innvikler.sh && rm innvikler.sh
+RUN     ash innvikler.sh min
 
 WORKDIR /w
 EXPOSE  3923

@@ -129,31 +129,31 @@ class Cfg(Namespace):
     def __init__(self, a=None, v=None, c=None, **ka0):
         ka = {}
 
-        ex = "chpw daw dav_auth dav_mac dav_rt e2d e2ds e2dsa e2t e2ts e2tsr e2v e2vu e2vp early_ban ed emp exp force_js getmod grid gsel hardlink ih ihead magic hardlink_only nid nih no_acode no_athumb no_bauth no_clone no_cp no_dav no_db_ip no_del no_dirsz no_dupe no_lifetime no_logues no_mv no_pipe no_poll no_readme no_robots no_sb_md no_sb_lg no_scandir no_tarcmp no_thumb no_vthumb no_zip nrand nsort nw og og_no_head og_s_title ohead q rand re_dirsz rss smb srch_dbg srch_excl stats uqe vague_403 vc ver write_uplog xdev xlink xvol zs"
+        ex = "chpw daw dav_auth dav_mac dav_rt e2d e2ds e2dsa e2t e2ts e2tsr e2v e2vu e2vp early_ban ed emp exp force_js getmod grid gsel hardlink ih ihead magic hardlink_only nid nih no_acode no_athumb no_bauth no_clone no_cp no_dav no_db_ip no_del no_dirsz no_dupe no_lifetime no_logues no_mv no_pipe no_poll no_readme no_robots no_sb_md no_sb_lg no_scandir no_tarcmp no_thumb no_vthumb no_zip nrand nsort nw og og_no_head og_s_title ohead q rand re_dirsz rss smb srch_dbg srch_excl stats uqe vague_403 vc ver wo_up_readme write_uplog xdev xlink xvol zipmaxu zs"
         ka.update(**{k: False for k in ex.split()})
 
         ex = "dav_inf dedup dotpart dotsrch hook_v no_dhash no_fastboot no_fpool no_htp no_rescan no_sendfile no_ses no_snap no_up_list no_voldump re_dhash plain_ip"
         ka.update(**{k: True for k in ex.split()})
 
-        ex = "ah_cli ah_gen css_browser hist ipu js_browser js_other mime mimes no_forget no_hash no_idx nonsus_urls og_tpl og_ua"
+        ex = "ah_cli ah_gen css_browser dbpath hist ipu js_browser js_other mime mimes no_forget no_hash no_idx nonsus_urls og_tpl og_ua ua_nodoc ua_nozip"
         ka.update(**{k: None for k in ex.split()})
 
         ex = "hash_mt hsortn safe_dedup srch_time u2abort u2j u2sz"
         ka.update(**{k: 1 for k in ex.split()})
 
-        ex = "au_vol dl_list mtab_age reg_cap s_thead s_tbody th_convt ups_who"
+        ex = "au_vol dl_list mtab_age reg_cap s_thead s_tbody th_convt ups_who zip_who"
         ka.update(**{k: 9 for k in ex.split()})
 
-        ex = "db_act k304 loris no304 re_maxage rproxy rsp_jtr rsp_slp s_wr_slp snap_wri theme themes turbo"
+        ex = "db_act forget_ip k304 loris no304 re_maxage rproxy rsp_jtr rsp_slp s_wr_slp snap_wri theme themes turbo u2ow zipmaxn zipmaxs"
         ka.update(**{k: 0 for k in ex.split()})
 
-        ex = "ah_alg bname chpw_db doctitle df exit favico idp_h_usr ipa html_head lg_sba lg_sbf log_fk md_sba md_sbf name og_desc og_site og_th og_title og_title_a og_title_v og_title_i shr tcolor textfiles unlist vname xff_src R RS SR"
+        ex = "ah_alg bname chpw_db doctitle df exit favico idp_h_usr ipa html_head lg_sba lg_sbf log_fk md_sba md_sbf name og_desc og_site og_th og_title og_title_a og_title_v og_title_i shr tcolor textfiles unlist vname xff_src zipmaxt R RS SR"
         ka.update(**{k: "" for k in ex.split()})
 
-        ex = "ban_403 ban_404 ban_422 ban_pw ban_url"
+        ex = "ban_403 ban_404 ban_422 ban_pw ban_url spinner"
         ka.update(**{k: "no" for k in ex.split()})
 
-        ex = "grp on403 on404 xac xad xar xau xban xbc xbd xbr xbu xiu xm"
+        ex = "ext_th grp on403 on404 xac xad xar xau xban xbc xbd xbr xbu xiu xm"
         ka.update(**{k: [] for k in ex.split()})
 
         ex = "exp_lg exp_md"
@@ -174,6 +174,7 @@ class Cfg(Namespace):
             lang="eng",
             log_badpwd=1,
             logout=573,
+            md_hist="s",
             mte={"a": True},
             mth={},
             mtp=[],

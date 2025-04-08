@@ -79,7 +79,6 @@ excl=(
     email.parser
     importlib.resources
     importlib_resources
-    inspect
     multiprocessing
     packaging
     pdb
@@ -99,6 +98,7 @@ excl=(
     PIL.ImageWin
     PIL.PdfParser
 ) || excl+=(
+    inspect
     PIL
     PIL.ExifTags
     PIL.Image

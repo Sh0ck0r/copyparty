@@ -4,12 +4,11 @@ from __future__ import print_function, unicode_literals
 import calendar
 import stat
 import time
-import zlib
 
 from .authsrv import AuthSrv
 from .bos import bos
 from .sutil import StreamArc, errdesc
-from .util import min_ex, sanitize_fn, spack, sunpack, yieldfile
+from .util import min_ex, sanitize_fn, spack, sunpack, yieldfile, zlib
 
 if True:  # pylint: disable=using-constant-test
     from typing import Any, Generator, Optional

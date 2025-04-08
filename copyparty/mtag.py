@@ -18,6 +18,7 @@ from .util import (
     REKOBO_LKEY,
     VF_CAREFUL,
     fsenc,
+    gzip,
     min_ex,
     pybin,
     retchk,
@@ -138,8 +139,6 @@ def au_unpk(
         fd, ret = tempfile.mkstemp("." + au)
 
         if pk == "gz":
-            import gzip
-
             fi = gzip.GzipFile(abspath, mode="rb")
 
         elif pk == "xz":

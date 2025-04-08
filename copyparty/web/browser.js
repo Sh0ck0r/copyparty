@@ -62,6 +62,7 @@ var Ls = {
 				["U/O", "skip 10sec back/fwd"],
 				["0..9", "jump to 0%..90%"],
 				["P", "play/pause (also initiates)"],
+				["S", "select playing song"],
 				["Y", "download song"],
 			], [
 				"image-viewer",
@@ -70,6 +71,7 @@ var Ls = {
 				["F", "fullscreen"],
 				["R", "rotate clockwise"],
 				["🡅 R", "rotate ccw"],
+				["S", "select pic"],
 				["Y", "download pic"],
 			], [
 				"video-player",
@@ -149,7 +151,8 @@ var Ls = {
 
 		"ul_par": "parallel uploads:",
 		"ut_rand": "randomize filenames",
-		"ut_u2ts": "copy the last-modified timestamp$Nfrom your filesystem to the server",
+		"ut_u2ts": "copy the last-modified timestamp$Nfrom your filesystem to the server\">📅",
+		"ut_ow": "overwrite existing files on the server?$N🛡️: never (will generate a new filename instead)$N🕒: overwrite if server-file is older than yours$N♻️: always overwrite if the files are different",
 		"ut_mt": "continue hashing other files while uploading$N$Nmaybe disable if your CPU or HDD is a bottleneck",
 		"ut_ask": 'ask for confirmation before upload starts">💭',
 		"ut_pot": "improve upload speed on slow devices$Nby making the UI less complex",
@@ -313,6 +316,7 @@ var Ls = {
 		"mm_eunk": "Unknown Errol",
 		"mm_e404": "Could not play audio; error 404: File not found.",
 		"mm_e403": "Could not play audio; error 403: Access denied.\n\nTry pressing F5 to reload, maybe you got logged out",
+		"mm_e500": "Could not play audio; error 500: Check server logs.",
 		"mm_e5xx": "Could not play audio; server error ",
 		"mm_nof": "not finding any more audio files nearby",
 		"mm_prescan": "Looking for music to play next...",
@@ -536,8 +540,10 @@ var Ls = {
 		"u_ewrite": 'you do not have write-access to this folder',
 		"u_eread": 'you do not have read-access to this folder',
 		"u_enoi": 'file-search is not enabled in server config',
+		"u_enoow": "overwrite will not work here; need Delete-permission",
 		"u_badf": 'These {0} files (of {1} total) were skipped, possibly due to filesystem permissions:\n\n',
 		"u_blankf": 'These {0} files (of {1} total) are blank / empty; upload them anyways?\n\n',
+		"u_applef": 'These {0} files (of {1} total) are probably undesirable;\nPress <code>OK/Enter</code> to SKIP the following files,\nPress <code>Cancel/ESC</code> to NOT exclude, and UPLOAD those as well:\n\n',
 		"u_just1": '\nMaybe it works better if you select just one file',
 		"u_ff_many": "if you're using <b>Linux / MacOS / Android,</b> then this amount of files <a href=\"https://bugzilla.mozilla.org/show_bug.cgi?id=1790500\" target=\"_blank\"><em>may</em> crash Firefox!</a>\nif that happens, please try again (or use Chrome).",
 		"u_up_life": "This upload will be deleted from the server\n{0} after it completes",
@@ -659,6 +665,7 @@ var Ls = {
 				["U/O", "hopp 10sek bak/frem"],
 				["0..9", "hopp til 0%..90%"],
 				["P", "pause, eller start / fortsett"],
+				["S", "marker spillende sang"],
 				["Y", "last ned sang"],
 			], [
 				"bildeviser",
@@ -667,6 +674,7 @@ var Ls = {
 				["F", "fullskjermvisning"],
 				["R", "rotere mot høyre"],
 				["🡅 R", "rotere mot venstre"],
+				["S", "marker bilde"],
 				["Y", "last ned bilde"],
 			], [
 				"videospiller",
@@ -681,7 +689,7 @@ var Ls = {
 				["I/K", "forr./neste fil"],
 				["M", "lukk tekstdokument"],
 				["E", "rediger tekstdokument"],
-				["S", "velg fil (for F2/ctrl-x/...)"],
+				["S", "marker fil (for F2/ctrl-x/...)"],
 				["Y", "last ned tekstfil"],
 			]
 		],
@@ -747,7 +755,8 @@ var Ls = {
 
 		"ul_par": "samtidige handl.:",
 		"ut_rand": "finn opp nye tilfeldige filnavn",
-		"ut_u2ts": "gi filen på serveren samme$Ntidsstempel som lokalt hos deg",
+		"ut_u2ts": "gi filen på serveren samme$Ntidsstempel som lokalt hos deg\">📅",
+		"ut_ow": "overskrive eksisterende filer på serveren?$N🛡️: aldri (finner på et nytt filnavn istedenfor)$N🕒: overskriv hvis serverens fil er eldre$N♻️: alltid, gitt at innholdet er forskjellig",
 		"ut_mt": "fortsett å befare køen mens opplastning foregår$N$Nskru denne av dersom du har en$Ntreg prosessor eller harddisk",
 		"ut_ask": 'bekreft filutvalg før opplastning starter">💭',
 		"ut_pot": "forbedre ytelsen på trege enheter ved å$Nforenkle brukergrensesnittet",
@@ -911,6 +920,7 @@ var Ls = {
 		"mm_eunk": "Ukjent feil",
 		"mm_e404": "Avspilling feilet: Fil ikke funnet.",
 		"mm_e403": "Avspilling feilet: Tilgang nektet.\n\nKanskje du ble logget ut?\nPrøv å trykk F5 for å laste siden på nytt.",
+		"mm_e500": "Avspilling feilet: Rusk i maskineriet, sjekk serverloggen.",
 		"mm_e5xx": "Avspilling feilet: ",
 		"mm_nof": "finner ikke flere sanger i nærheten",
 		"mm_prescan": "Leter etter neste sang...",
@@ -1134,8 +1144,10 @@ var Ls = {
 		"u_ewrite": 'du har ikke skrivetilgang i denne mappen',
 		"u_eread": 'du har ikke lesetilgang i denne mappen',
 		"u_enoi": 'filsøk er deaktivert i serverkonfigurasjonen',
+		"u_enoow": "kan ikke overskrive filer her (Delete-rettigheten er nødvendig)",
 		"u_badf": 'Disse {0} filene (av totalt {1}) kan ikke leses, kanskje pga rettighetsproblemer i filsystemet på datamaskinen din:\n\n',
 		"u_blankf": 'Disse {0} filene (av totalt {1}) er blanke / uten innhold; ønsker du å laste dem opp uansett?\n\n',
+		"u_applef": 'Disse {0} filene (av totalt {1}) er antagelig uønskede;\nTrykk <code>OK/Enter</code> for å HOPPE OVER disse filene,\nTrykk <code>Avbryt/ESC</code> for å LASTE OPP disse filene også:\n\n',
 		"u_just1": '\nFunker kanskje bedre hvis du bare tar én fil om gangen',
 		"u_ff_many": 'Hvis du bruker <b>Linux / MacOS / Android,</b> så kan dette antallet filer<br /><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1790500" target="_blank"><em>kanskje</em> krasje Firefox!</a> Hvis det skjer, så prøv igjen (eller bruk Chrome).',
 		"u_up_life": "Filene slettes fra serveren {0}\netter at opplastningen er fullført",
@@ -1258,6 +1270,7 @@ var Ls = {
 				["U/O", "跳过10秒向前/向后"],
 				["0..9", "跳转到0%..90%"],
 				["P",  "播放/暂停（也可以启动）"],
+				["S", "选择正在播放的歌曲"], //m
 				["Y", "下载歌曲"]
 			], [
 				"image-viewer",
@@ -1266,6 +1279,7 @@ var Ls = {
 				["F", "全屏"],
 				["R", "顺时针旋转"],
 				["🡅 R", "逆时针旋转"],
+				["S", "选择图片"], //m
 				["Y", "下载图片"]
 			], [
 				"video-player",
@@ -1345,7 +1359,8 @@ var Ls = {
 
 		"ul_par": "并行上传：",
 		"ut_rand": "随机化文件名",
-		"ut_u2ts": "将最后修改的时间戳$N从你的文件系统复制到服务器",
+		"ut_u2ts": "将最后修改的时间戳$N从你的文件系统复制到服务器\">📅",
+		"ut_ow": "覆盖服务器上的现有文件？$N🛡️: 从不（会生成一个新文件名）$N🕒: 服务器文件较旧则覆盖$N♻️: 总是覆盖，如果文件内容不同", //m
 		"ut_mt": "在上传时继续哈希其他文件$N$N如果你的 CPU 或硬盘是瓶颈，可能需要禁用",
 		"ut_ask": '上传开始前询问确认">💭',
 		"ut_pot": "通过简化 UI 来$N提高慢设备上的上传速度",
@@ -1509,6 +1524,7 @@ var Ls = {
 		"mm_eunk": "未知错误",
 		"mm_e404": "无法播放音频；错误 404：文件未找到。",
 		"mm_e403": "无法播放音频；错误 403：访问被拒绝。\n\n尝试按 F5 重新加载，也许你已被注销",
+		"mm_e500": "无法播放音频；错误 500：检查服务器日志。", //m
 		"mm_e5xx": "无法播放音频；服务器错误",
 		"mm_nof": "附近找不到更多音频文件",
 		"mm_prescan": "正在寻找下一首音乐...",
@@ -1732,8 +1748,10 @@ var Ls = {
 		"u_ewrite": '你对这个文件夹没有写入权限',
 		"u_eread": '你对这个文件夹没有读取权限',
 		"u_enoi": '文件搜索在服务器配置中未启用',
+		"u_enoow": "无法覆盖此处的文件；需要删除权限", //m
 		"u_badf": '这些 {0} 个文件（共 {1} 个）被跳过，可能是由于文件系统权限：\n\n',
 		"u_blankf": '这些 {0} 个文件（共 {1} 个）是空白的；是否仍然上传？\n\n',
+		"u_applef": "这些 {0} 个文件（共 {1} 个）可能是不需要的；\n按 <code>确定/Enter</code> 跳过以下文件，\n按 <code>取消/ESC</code> 取消排除，并上传这些文件：\n\n", //m
 		"u_just1": '\n也许如果你只选择一个文件会更好',
 		"u_ff_many": "如果你使用的是 <b>Linux / MacOS / Android，</b> 那么这个文件数量 <a href=\"https://bugzilla.mozilla.org/show_bug.cgi?id=1790500\" target=\"_blank\"><em>可能</em> 崩溃 Firefox!</a>\n如果发生这种情况，请再试一次（或使用 Chrome）。",
 		"u_up_life": "此上传将在 {0} 后从服务器删除",
@@ -1912,8 +1930,8 @@ ebi('op_up2k').innerHTML = (
 	'			<label for="u2rand" tt="' + L.ut_rand + '">🎲</label>\n' +
 	'		</td>\n' +
 	'		<td class="c" rowspan="2">\n' +
-	'			<input type="checkbox" id="u2ts" />\n' +
-	'			<label for="u2ts" tt="' + L.ut_u2ts + '">📅</a>\n' +
+	'			<input type="checkbox" id="u2ow" />\n' +
+	'			<label for="u2ow" tt="' + L.ut_ow + '">?</a>\n' +
 	'		</td>\n' +
 	'		<td class="c" data-perm="read" data-dep="idx" rowspan="2">\n' +
 	'			<input type="checkbox" id="fsearch" />\n' +
@@ -2031,6 +2049,7 @@ ebi('op_cfg').innerHTML = (
 	'	<h3>' + L.cl_uopts + '</h3>\n' +
 	'	<div>\n' +
 	'		<a id="ask_up" class="tgl btn" href="#" tt="' + L.ut_ask + '</a>\n' +
+	'		<a id="u2ts" class="tgl btn" href="#" tt="' + L.ut_u2ts + '</a>\n' +
 	'		<a id="umod" class="tgl btn" href="#" tt="' + L.cut_umod + '</a>\n' +
 	'		<a id="hashw" class="tgl btn" href="#" tt="' + L.cut_mt + '</a>\n' +
 	'		<a id="u2turbo" class="tgl btn ttb" href="#" tt="' + L.cut_turbo + '</a>\n' +
@@ -2167,6 +2186,11 @@ function goto(dest) {
 }
 
 
+var m = SPINNER.split(','),
+	SPINNER_CSS = SPINNER.slice(1 + m[0].length);
+SPINNER = m[0];
+
+
 var SBW, SBH;  // scrollbar size
 (function () {
 	var el = mknod('div');
@@ -2220,6 +2244,7 @@ var ACtx = !IPHONE && (window.AudioContext || window.webkitAudioContext),
 	hash0 = location.hash,
 	sloc0 = '' + location,
 	noih = /[?&]v\b/.exec(sloc0),
+	rtt = null,
 	ldks = [],
 	dks = {},
 	dk, mp;
@@ -3350,6 +3375,14 @@ function dl_song() {
 	var url = addq(mp.au.osrc, 'cache=987&_=' + ACB);
 	dl_file(url);
 }
+function sel_song() {
+	var o = QS('#files tr.play');
+	if (!o)
+		return;
+	clmod(o, 'sel', 't');
+	msel.origin_tr(o);
+	msel.selui();
+}
 
 
 function playpause(e) {
@@ -4172,6 +4205,7 @@ function evau_error(e) {
 	}
 	var em = '' + eplaya.error.message,
 		mfile = '\n\nFile: «' + uricom_dec(eplaya.src.split('/').pop()) + '»',
+		e500 = L.mm_e500,
 		e404 = L.mm_e404,
 		e403 = L.mm_e403;
 
@@ -4184,6 +4218,9 @@ function evau_error(e) {
 	if (em.startsWith('404: '))
 		err = e404;
 
+	if (em.startsWith('500: '))
+		err = e500;
+
 	toast.warn(15, esc(basenames(err + mfile)));
 	console.log(basenames(err + mfile));
 
@@ -4195,7 +4232,9 @@ function evau_error(e) {
 			if (this.status < 400)
 				return;
 
-			err = this.status == 403 ? e403 : this.status == 404 ? e404 :
+			err = this.status == 403 ? e403 :
+				this.status == 404 ? e404 :
+				this.status == 500 ? e500 :
 				L.mm_e5xx + this.status;
 
 			toast.warn(15, esc(basenames(err + mfile)));
@@ -4258,8 +4297,11 @@ function scan_hash(v) {
 
 
 function eval_hash() {
-	document.onkeydown = ahotkeys;
-	window.onpopstate = treectl.onpopfun;
+	if (!window.hotkeys_attached) {
+		window.hotkeys_attached = true;
+		document.onkeydown = ahotkeys;
+		window.onpopstate = treectl.onpopfun;
+	}
 
 	if (hash0 && window.og_fn) {
 		var all = msel.getall(), mi;
@@ -4408,7 +4450,7 @@ function read_dsort(txt) {
 		}
 	}
 	catch (ex) {
-		toast.warn(10, 'failed to apply default sort order [' + txt + ']:\n' + ex);
+		toast.warn(10, 'failed to apply default sort order [' + esc('' + txt) + ']:\n' + ex);
 		dsort = [['href', 1, '']];
 	}
 }
@@ -5741,7 +5783,7 @@ var showfile = (function () {
 
 			td.innerHTML = '<a href="#" id="t' +
 				link.id + '" class="doc bri" hl="' +
-				link.id + '">-txt-</a>';
+				link.id + '" rel="nofollow">-txt-</a>';
 
 			td.getElementsByTagName('a')[0].setAttribute('href', '?doc=' + fn);
 		}
@@ -6276,19 +6318,40 @@ var thegrid = (function () {
 		var html = [],
 			svgs = new Set(),
 			max_svgs = CHROME ? 500 : 5000,
+			need_ext = !r.thumbs || !!ext_th,
+			use_ext_th = r.thumbs && ext_th,
 			files = QSA('#files>tbody>tr>td:nth-child(2) a[id]');
 
 		for (var a = 0, aa = files.length; a < aa; a++) {
 			var ao = files[a],
 				ohref = esc(ao.getAttribute('href')),
 				href = ohref.split('?')[0],
+				ext = '',
 				name = uricom_dec(vsplit(href)[1]),
 				ref = ao.getAttribute('id'),
 				isdir = href.endsWith('/'),
 				ac = isdir ? ' class="dir"' : '',
 				ihref = ohref;
 
-			if (r.thumbs) {
+			if (need_ext && href != "#") {
+				var ar = href.split('.');
+				if (ar.length > 1)
+					ar.shift();
+
+				ar.reverse();
+				for (var b = 0; b < Math.min(2, ar.length); b++) {
+					if (ar[b].length > 7)
+						break;
+
+					ext = ar[b] + '.' + ext;
+				}
+				ext = (ext || 'unk.').slice(0, -1);
+			}
+
+			if (use_ext_th && ext_th[ext]) {
+				ihref = ext_th[ext];
+			}
+			else if (r.thumbs) {
 				ihref = addq(ihref, 'th=' + (have_webp ? 'w' : 'j'));
 				if (!r.crop)
 					ihref += 'f';
@@ -6301,22 +6364,6 @@ var thegrid = (function () {
 				ihref = SR + '/.cpr/ico/folder';
 			}
 			else {
-				var ar = href.split('.');
-				if (ar.length > 1)
-					ar = ar.slice(1);
-
-				ihref = '';
-				ar.reverse();
-				for (var b = 0; b < ar.length; b++) {
-					if (ar[b].length > 7)
-						break;
-
-					ihref = ar[b] + '.' + ihref;
-				}
-				if (!ihref) {
-					ihref = 'unk.';
-				}
-				var ext = ihref.slice(0, -1);
 				if (!svgs.has(ext)) {
 					if (svgs.size < max_svgs)
 						svgs.add(ext);
@@ -6803,6 +6850,11 @@ var ahotkeys = function (e) {
 			showfile.tglsel();
 		if ((k == 'KeyE' || k == 'e') && ebi('editdoc').style.display != 'none')
 			ebi('editdoc').click();
+	}
+
+	if (mp && mp.au && !mp.au.paused) {
+		if (k == 'KeyS')
+			return sel_song();
 	}
 
 	if (thegrid.en) {
@@ -7470,7 +7522,7 @@ var treectl = (function () {
 		xhr.open('GET', addq(dst, 'tree=' + top + (r.dots ? '&dots' : '') + k), true);
 		xhr.onload = xhr.onerror = r.recvtree;
 		xhr.send();
-		enspin('#tree');
+		enspin('t');
 	}
 
 	r.recvtree = function () {
@@ -7518,7 +7570,7 @@ var treectl = (function () {
 				}
 			}
 		}
-		despin('#tree');
+		qsr('#dlt_t');
 
 		try {
 			QS('#treeul>li>a+a').textContent = '[root]';
@@ -7659,14 +7711,18 @@ var treectl = (function () {
 
 		var xhr = new XHR(),
 			m = /[?&](k=[^&#]+)/.exec(url),
-			k = m ? '&' + m[1] : dk ? '&k=' + dk : '';
+			k = m ? '&' + m[1] : dk ? '&k=' + dk : '',
+			uq = (r.dots ? '&dots' : '') + k;
+
+		if (rtt !== null)
+			uq += '&rtt=' + rtt;
 
 		xhr.top = url.split('?')[0];
 		xhr.back = back
 		xhr.hpush = hpush;
 		xhr.hydrate = hydrate;
 		xhr.ts = Date.now();
-		xhr.open('GET', xhr.top + '?ls' + (r.dots ? '&dots' : '') + k, true);
+		xhr.open('GET', xhr.top + '?ls' + uq, true);
 		xhr.onload = xhr.onerror = recvls;
 		xhr.send();
 
@@ -7674,8 +7730,8 @@ var treectl = (function () {
 		r.sb_msg = false;
 		r.nextdir = xhr.top;
 		clearTimeout(mpl.t_eplay);
-		enspin('#tree');
-		enspin(thegrid.en ? '#gfiles' : '#files');
+		enspin('t');
+		enspin('f');
 		window.removeEventListener('scroll', r.tscroll);
 	}
 
@@ -7697,6 +7753,8 @@ var treectl = (function () {
 	function recvls() {
 		if (!xhrchk(this, L.fl_xe1, L.fl_xe2))
 			return;
+
+		rtt = Date.now() - this.ts;
 
 		r.nextdir = null;
 		var cdir = get_evpath(),
@@ -7741,10 +7799,12 @@ var treectl = (function () {
 		dk = res.dk;
 
 		srvinf = res.srvinf;
-		try {
-			ebi('srv_info').innerHTML = ebi('srv_info2').innerHTML = '<span>' + res.srvinf + '</span>';
-		}
-		catch (ex) { }
+		if (rtt !== null)
+			srvinf += (srvinf ? '</span> // <span>rtt: ' : 'rtt: ') + rtt;
+
+		var o = ebi('srv_info2');
+		if (o)
+			o.innerHTML = ebi('srv_info').innerHTML = '<span>' + srvinf + '</span>';
 
 		if (this.hpush && !showfile.active())
 			hist_push(this.top + (dk ? '?k=' + dk : ''));
@@ -7766,9 +7826,8 @@ var treectl = (function () {
 		}
 
 		r.gentab(this.top, res);
-		despin('#tree');
-		despin('#files');
-		despin('#gfiles');
+		qsr('#dlt_t');
+		qsr('#dlt_f');
 
 		var lg0 = res.logues ? res.logues[0] || "" : "",
 			lg1 = res.logues ? res.logues[1] || "" : "",
@@ -7826,7 +7885,7 @@ var treectl = (function () {
 	r.gentab = function (top, res) {
 		var nodes = res.dirs.concat(res.files),
 			html = mk_files_header(res.taglist),
-			sel = r.lsc === res ? msel.getsel() : [],
+			sel = msel.hist[top],
 			ae = document.activeElement,
 			cid = null,
 			plain = [],
@@ -7886,7 +7945,7 @@ var treectl = (function () {
 
 			if (tn.lead == '-')
 				tn.lead = '<a href="?doc=' + bhref + '" id="t' + id +
-					'" class="doc' + (lang ? ' bri' : '') +
+					'" rel="nofollow" class="doc' + (lang ? ' bri' : '') +
 					'" hl="' + id + '" name="' + hname + '">-txt-</a>';
 
 			var cl = /\.PARTIAL$/.exec(fname) ? ' class="fade"' : '',
@@ -7937,10 +7996,7 @@ var treectl = (function () {
 				apply_perms(res);
 				fileman.render();
 			}
-			if (sel.length)
-				msel.loadsel(sel);
-			else
-				msel.origin_id(null);
+			msel.loadsel(top, sel);
 
 			if (cid) try {
 				ebi(cid).closest('tr').focus();
@@ -8160,20 +8216,15 @@ var treectl = (function () {
 })();
 
 
-function enspin(sel) {
-	despin(sel);
-	var d = mknod('div');
+function enspin(i) {
+	i = 'dlt_' + i;
+	if (ebi(i))
+		return;
+	var d = mknod('div', i, SPINNER);
 	d.className = 'dumb_loader_thing';
-	d.innerHTML = '🌲';
-	var tgt = QS(sel);
-	tgt.insertBefore(d, tgt.childNodes[0]);
-}
-
-
-function despin(sel) {
-	var o = QSA(sel + '>.dumb_loader_thing');
-	for (var a = o.length - 1; a >= 0; a--)
-		o[a].parentNode.removeChild(o[a]);
+	if (SPINNER_CSS)
+		d.style.cssText = SPINNER_CSS;
+	document.body.appendChild(d);
 }
 
 
@@ -8340,7 +8391,7 @@ function mk_files_header(taglist) {
 		var tag = taglist[a],
 			c1 = tag.slice(0, 1).toUpperCase();
 
-		tag = c1 + tag.slice(1);
+		tag = esc(c1 + tag.slice(1));
 		if (c1 == '.')
 			tag = '<th name="tags/' + tag + '" sort="int"><span>' + tag.slice(1);
 		else
@@ -8657,7 +8708,17 @@ var mukey = (function () {
 
 var light, theme, themen;
 var settheme = (function () {
-	var ax = 'abcdefghijklmnopqrstuvwx';
+	var r = {},
+		ax = 'abcdefghijklmnopqrstuvwx',
+		tre = '🌲',
+		chldr = !SPINNER_CSS && SPINNER == tre;
+
+	r.ldr = {
+		'4':['🌴'],
+		'5':['🌭', 'padding:0 0 .7em .7em;filter:saturate(3)'],
+		'6':['📞', 'padding:0;filter:brightness(2) sepia(1) saturate(3) hue-rotate(60deg)'],
+		'7':['▲', 'font-size:3em'], //cp437
+	};
 
 	theme = sread('cpp_thm') || 'a';
 	if (!/^[a-x][yz]/.exec(theme))
@@ -8687,13 +8748,19 @@ var settheme = (function () {
 		ebi('themes').innerHTML = html.join('');
 		var btns = QSA('#themes a');
 		for (var a = 0; a < themes; a++)
-			btns[a].onclick = settheme;
+			btns[a].onclick = r.go;
+
+		if (chldr) {
+			var x = r.ldr[itheme] || [tre];
+			SPINNER = x[0];
+			SPINNER_CSS = x[1];
+		}
 
 		bcfg_set('light', light);
 		tt.att(ebi('themes'));
 	}
 
-	function settheme(e) {
+	r.go = function (e) {
 		var i = e;
 		try { ev(e); i = e.target.textContent; } catch (ex) { }
 		light = i % 2 == 1;
@@ -8706,19 +8773,19 @@ var settheme = (function () {
 	}
 
 	freshen();
-	return settheme;
+	return r;
 })();
 
 
 (function () {
 	function freshen() {
 		lang = sread("cpp_lang", LANGS) || lang;
-		var html = [];
-		for (var k in Ls)
-			if (Ls.hasOwnProperty(k))
-				html.push('<a href="#" class="btn tgl' + (k == lang ? ' on' : '') +
-					'" tt="' + Ls[k].tt + '">' + k + '</a>');
-
+		var k, html = [];
+		for (var a = 0; a < LANGS.length; a++) {
+			k = LANGS[a];
+			html.push('<a href="#" class="btn tgl' + (k == lang ? ' on' : '') +
+				'" tt="' + Ls[k].tt + '">' + k + '</a>');
+		}
 		ebi('langs').innerHTML = html.join('');
 		var btns = QSA('#langs a');
 		for (var a = 0, aa = btns.length; a < aa; a++)
@@ -8822,6 +8889,7 @@ var msel = (function () {
 	var r = {};
 	r.sel = null;
 	r.all = null;
+	r.hist = {};
 	r.so = null;  // selection origin
 	r.pr = null;  // previous range
 
@@ -8870,10 +8938,14 @@ var msel = (function () {
 		}
 	};
 
-	r.loadsel = function (sel) {
+	r.loadsel = function (vp, sel) {
 		if (!sel || !r.so || !ebi(r.so))
 			r.so = r.pr = null;
 
+		if (!sel)
+			return r.origin_id(null);
+
+		r.hist[vp] = sel;
 		r.sel = [];
 		r.load();
 
@@ -8905,6 +8977,11 @@ var msel = (function () {
 		thegrid.loadsel();
 		fileman.render();
 		showfile.updtree();
+
+		if (r.sel.length)
+			r.hist[get_evpath()] = r.sel;
+		else
+			delete r.hist[get_evpath()];
 	};
 	r.seltgl = function (e) {
 		ev(e);

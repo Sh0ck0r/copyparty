@@ -237,6 +237,8 @@ necho() {
 	tar -zxf $f
 	mv partftpy-*/partftpy .
 	rm -rf partftpy-* partftpy/bin
+	#(cd partftpy && "$pybin" ../../scripts/strip_hints/a.py; rm uh)  # dont need the full thing, just this:
+	sed -ri 's/from typing import TYPE_CHECKING$/TYPE_CHECKING = False/' partftpy/TftpShared.py
 
 	necho collecting python-magic
 	v=0.4.27

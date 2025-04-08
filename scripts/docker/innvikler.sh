@@ -1,6 +1,16 @@
 #!/bin/ash
 set -ex
 
+# use zlib-ng if available
+f=/z/base/zlib_ng-0.5.1-cp312-cp312-linux_$(cat /etc/apk/arch).whl
+[ "$1" != min ] && [ -e $f ] && {
+  apk add -t .bd !pyc py3-pip
+  rm -f /usr/lib/python3*/EXTERNALLY-MANAGED
+  pip install $f
+  apk del .bd
+}
+rm -rf /z/base
+
 # cleanup for flavors with python build steps (dj/iv)
 rm -rf /var/cache/apk/* /root/.cache
 
@@ -22,6 +32,9 @@ rm -rf \
   /tmp/pe-* /z/copyparty-sfx.py \
   ensurepip pydoc_data turtle.py turtledemo lib2to3
 
+# speedhack
+sed -ri 's/os.environ.get\("PRTY_NO_IMPRESO"\)/"1"/' /usr/lib/python3.*/site-packages/copyparty/util.py
+
 # drop bytecode
 find / -xdev -name __pycache__ -print0 | xargs -0 rm -rf
 
@@ -40,7 +53,33 @@ find -name __pycache__ |
 cd /z
 python3 -m copyparty \
   --ign-ebind -p$((1024+RANDOM)),$((1024+RANDOM)),$((1024+RANDOM)) \
-  --no-crt -qi127.1 --exit=idx -e2dsa -e2ts
+  -v .::r --no-crt -qi127.1 --exit=idx -e2dsa -e2ts
+
+########################################################################
+# test download-as-tar.gz
+
+t=$(mktemp)
+python3 -m copyparty \
+  --ign-ebind -p$((1024+RANDOM)),$((1024+RANDOM)),$((1024+RANDOM)) \
+  -v .::r --no-crt -qi127.1 --wr-h-eps $t & pid=$!
+
+for n in $(seq 1 200); do sleep 0.2
+  v=$(awk '/^127/{print;n=1;exit}END{exit n-1}' $t) && break
+done
+[ -z "$v" ] && echo SNAAAAAKE && exit 1
+
+for n in $(seq 1 200); do sleep 0.2
+  wget -O- http://${v/ /:}/?tar=gz:1 >tf && break
+done
+tar -xzO top/innvikler.sh <tf | cmp innvikler.sh
+rm tf
+
+kill $pid; wait $pid
+
+########################################################################
 
 # output from -e2d
 rm -rf .hist
+
+# goodbye
+exec rm innvikler.sh

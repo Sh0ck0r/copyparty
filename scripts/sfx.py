@@ -413,6 +413,9 @@ def run_i(ld):
     for x in ld:
         sys.path.insert(0, x)
 
+    e = os.environ
+    e["PRTY_NO_IMPRESO"] = "1"
+
     from copyparty.__main__ import main as p
 
     p()

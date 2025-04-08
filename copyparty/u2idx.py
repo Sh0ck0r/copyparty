@@ -134,9 +134,9 @@ class U2idx(object):
         assert sqlite3  # type: ignore  # !rm
 
         ptop = vn.realpath
-        histpath = self.asrv.vfs.histtab.get(ptop)
+        histpath = self.asrv.vfs.dbpaths.get(ptop)
         if not histpath:
-            self.log("no histpath for %r" % (ptop,))
+            self.log("no dbpath for %r" % (ptop,))
             return None
 
         db_path = os.path.join(histpath, "up2k.db")

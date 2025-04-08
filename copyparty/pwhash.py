@@ -15,7 +15,7 @@ try:
         raise Exception()
 
     HAVE_ARGON2 = True
-    from argon2 import __version__ as argon2ver
+    from argon2 import exceptions as argon2ex
 except:
     HAVE_ARGON2 = False
 

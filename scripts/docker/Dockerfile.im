@@ -8,11 +8,12 @@ LABEL   org.opencontainers.image.url="https://github.com/9001/copyparty" \
 ENV     XDG_CONFIG_HOME=/cfg
 
 RUN     apk --no-cache add !pyc \
-            tzdata wget \
+            tzdata wget mimalloc2 mimalloc2-insecure \
             py3-jinja2 py3-argon2-cffi py3-pillow py3-mutagen
 
 COPY    i/dist/copyparty-sfx.py innvikler.sh ./
-RUN     ash innvikler.sh && rm innvikler.sh
+ADD     base ./base
+RUN     ash innvikler.sh im
 
 WORKDIR /w
 EXPOSE  3923

@@ -36,7 +36,19 @@ from partftpy.TftpShared import TftpException
 from .__init__ import EXE, PY2, TYPE_CHECKING
 from .authsrv import VFS
 from .bos import bos
-from .util import UTC, BytesIO, Daemon, ODict, exclude_dotfiles, min_ex, runhook, undot
+from .util import (
+    FN_EMB,
+    UTC,
+    BytesIO,
+    Daemon,
+    ODict,
+    exclude_dotfiles,
+    min_ex,
+    runhook,
+    undot,
+    vjoin,
+    vsplit,
+)
 
 if True:  # pylint: disable=using-constant-test
     from typing import Any, Union
@@ -244,16 +256,25 @@ class Tftpd(object):
         for srv in srvs:
             srv.stop()
 
-    def _v2a(self, caller: str, vpath: str, perms: list, *a: Any) -> tuple[VFS, str]:
+    def _v2a(
+        self, caller: str, vpath: str, perms: list, *a: Any
+    ) -> tuple[VFS, str, str]:
         vpath = vpath.replace("\\", "/").lstrip("/")
         if not perms:
             perms = [True, True]
 
         debug('%s("%s", %s) %s\033[K\033[0m', caller, vpath, str(a), perms)
         vfs, rem = self.asrv.vfs.get(vpath, "*", *perms)
+        if perms[1] and "*" not in vfs.axs.uread and "wo_up_readme" not in vfs.flags:
+            zs, fn = vsplit(vpath)
+            if fn.lower() in FN_EMB:
+                vpath = vjoin(zs, "_wo_" + fn)
+                vfs, rem = self.asrv.vfs.get(vpath, "*", *perms)
+
         if not vfs.realpath:
             raise Exception("unmapped vfs")
-        return vfs, vfs.canonical(rem)
+
+        return vfs, vpath, vfs.canonical(rem)
 
     def _ls(self, vpath: str, raddress: str, rport: int, force=False) -> Any:
         # generate file listing if vpath is dir.txt and return as file object
@@ -331,7 +352,7 @@ class Tftpd(object):
         else:
             raise Exception("bad mode %s" % (mode,))
 
-        vfs, ap = self._v2a("open", vpath, [rd, wr])
+        vfs, vpath, ap = self._v2a("open", vpath, [rd, wr])
         if wr:
             if "*" not in vfs.axs.uwrite:
                 yeet("blocked write; folder not world-writable: /%s" % (vpath,))
@@ -368,7 +389,7 @@ class Tftpd(object):
         return open(ap, mode, *a, **ka)
 
     def _mkdir(self, vpath: str, *a) -> None:
-        vfs, ap = self._v2a("mkdir", vpath, [])
+        vfs, _, ap = self._v2a("mkdir", vpath, [False, True])
         if "*" not in vfs.axs.uwrite:
             yeet("blocked mkdir; folder not world-writable: /%s" % (vpath,))
 
@@ -376,7 +397,7 @@ class Tftpd(object):
 
     def _unlink(self, vpath: str) -> None:
         # return bos.unlink(self._v2a("stat", vpath, *a)[1])
-        vfs, ap = self._v2a("delete", vpath, [True, False, False, True])
+        vfs, _, ap = self._v2a("delete", vpath, [True, False, False, True])
 
         try:
             inf = bos.stat(ap)
@@ -400,7 +421,7 @@ class Tftpd(object):
 
     def _p_exists(self, vpath: str) -> bool:
         try:
-            ap = self._v2a("p.exists", vpath, [False, False])[1]
+            ap = self._v2a("p.exists", vpath, [False, False])[2]
             bos.stat(ap)
             return True
         except:
@@ -408,7 +429,7 @@ class Tftpd(object):
 
     def _p_isdir(self, vpath: str) -> bool:
         try:
-            st = bos.stat(self._v2a("p.isdir", vpath, [False, False])[1])
+            st = bos.stat(self._v2a("p.isdir", vpath, [False, False])[2])
             ret = stat.S_ISDIR(st.st_mode)
             return ret
         except:

@@ -19,6 +19,7 @@ from .__init__ import PY2, TYPE_CHECKING
 from .authsrv import VFS
 from .bos import bos
 from .util import (
+    FN_EMB,
     VF_CAREFUL,
     Daemon,
     ODict,
@@ -170,6 +171,16 @@ class FtpFs(AbstractedFS):
             fn = sanitize_fn(fn or "", "")
             vpath = vjoin(rd, fn)
             vfs, rem = self.hub.asrv.vfs.get(vpath, self.uname, r, w, m, d)
+            if (
+                w
+                and fn.lower() in FN_EMB
+                and self.h.uname not in vfs.axs.uread
+                and "wo_up_readme" not in vfs.flags
+            ):
+                fn = "_wo_" + fn
+                vpath = vjoin(rd, fn)
+                vfs, rem = self.hub.asrv.vfs.get(vpath, self.uname, r, w, m, d)
+
             if not vfs.realpath:
                 t = "No filesystem mounted at [{}]"
                 raise FSE(t.format(vpath))

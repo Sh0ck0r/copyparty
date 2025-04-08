@@ -4,7 +4,6 @@ from __future__ import print_function, unicode_literals
 import argparse  # typechk
 import copy
 import errno
-import gzip
 import hashlib
 import itertools
 import json
@@ -22,6 +21,7 @@ from datetime import datetime
 from operator import itemgetter
 
 import jinja2  # typechk
+from ipaddress import IPv6Network
 
 try:
     if os.environ.get("PRTY_NO_LZMA"):
@@ -45,6 +45,7 @@ from .util import (
     APPLESAN_RE,
     BITNESS,
     DAV_ALLPROPS,
+    FN_EMB,
     HAVE_SQLITE3,
     HTTPCODE,
     META_NOBOTS,
@@ -56,6 +57,7 @@ from .util import (
     UnrecvEOF,
     WrongPostKey,
     absreal,
+    afsenc,
     alltrace,
     atomic_move,
     b64dec,
@@ -68,6 +70,7 @@ from .util import (
     get_df,
     get_spd,
     guess_mime,
+    gzip,
     gzip_file_orig_sz,
     gzip_orig_sz,
     has_resource,
@@ -89,6 +92,7 @@ from .util import (
     read_socket,
     read_socket_chunked,
     read_socket_unbounded,
+    read_utf8,
     relchk,
     ren_open,
     runhook,
@@ -152,6 +156,8 @@ RE_HSAFE = re.compile(r"[\x00-\x1f<>\"'&]")  # search always much faster
 RE_HOST = re.compile(r"[^][0-9a-zA-Z.:_-]")  # search faster <=17ch
 RE_MHOST = re.compile(r"^[][0-9a-zA-Z.:_-]+$")  # match faster >=18ch
 RE_K = re.compile(r"[^0-9a-zA-Z_-]")  # search faster <=17ch
+RE_HR = re.compile(r"[<>\"'&]")
+RE_MDV = re.compile(r"(.*)\.([0-9]+\.[0-9]{3})(\.[Mm][Dd])$")
 
 UPARAM_CC_OK = set("doc move tree".split())
 
@@ -191,7 +197,7 @@ class HttpCli(object):
         self.is_vproxied = False
         self.in_hdr_recv = True
         self.headers: dict[str, str] = {}
-        self.mode = " "
+        self.mode = " "  # http verb
         self.req = " "
         self.http_ver = ""
         self.hint = ""
@@ -385,11 +391,12 @@ class HttpCli(object):
                         t += '  Note: if you are behind cloudflare, then this default header is not a good choice; please first make sure your local reverse-proxy (if any) does not allow non-cloudflare IPs from providing cf-* headers, and then add this additional global setting: "--xff-hdr=cf-connecting-ip"'
                     else:
                         t += '  Note: depending on your reverse-proxy, and/or WAF, and/or other intermediates, you may want to read the true client IP from another header by also specifying "--xff-hdr=SomeOtherHeader"'
-                    zs = (
-                        ".".join(pip.split(".")[:2]) + "."
-                        if "." in pip
-                        else ":".join(pip.split(":")[:4]) + ":"
-                    ) + "0.0/16"
+
+                    if "." in pip:
+                        zs = ".".join(pip.split(".")[:2]) + ".0.0/16"
+                    else:
+                        zs = IPv6Network(pip + "/64", False).compressed
+
                     zs2 = ' or "--xff-src=lan"' if self.conn.xff_lan.map(pip) else ""
                     self.log(t % (self.args.xff_hdr, pip, cli_ip, zso, zs, zs2), 3)
                     self.bad_xff = True
@@ -731,10 +738,10 @@ class HttpCli(object):
                 return self.handle_unlock() and self.keepalive
             elif self.mode == "MKCOL":
                 return self.handle_mkcol() and self.keepalive
-            elif self.mode == "MOVE":
-                return self.handle_move() and self.keepalive
+            elif self.mode in ("MOVE", "COPY"):
+                return self.handle_cpmv() and self.keepalive
             else:
-                raise Pebkac(400, 'invalid HTTP mode "{0}"'.format(self.mode))
+                raise Pebkac(400, 'invalid HTTP verb "{0}"'.format(self.mode))
 
         except Exception as ex:
             if not isinstance(ex, Pebkac):
@@ -866,8 +873,7 @@ class HttpCli(object):
             html = html.replace("%", "", 1)
 
         if html.startswith("@"):
-            with open(html[1:], "rb") as f:
-                html = f.read().decode("utf-8")
+            html = read_utf8(self.log, html[1:], True)
 
         if html.startswith("%"):
             html = html[1:]
@@ -1233,6 +1239,13 @@ class HttpCli(object):
                 else:
                     return self.tx_404(True)
             else:
+                vfs = self.asrv.vfs
+                if vfs.badcfg1:
+                    t = "<h2>access denied due to failsafe; check server log</h2>"
+                    html = self.j2s("splash", this=self, msg=t)
+                    self.reply(html.encode("utf-8", "replace"), 500)
+                    return True
+
                 if self.vpath:
                     ptn = self.args.nonsus_urls
                     if not ptn or not ptn.search(self.vpath):
@@ -1762,6 +1775,12 @@ class HttpCli(object):
             if "%" in self.req:
                 self.log("  `-- %r" % (self.vpath,))
 
+        if self.args.no_dav:
+            raise Pebkac(405, "WebDAV is disabled in server config")
+
+        if not self.can_write:
+            raise Pebkac(401, "authenticate")
+
         try:
             return self._mkdir(self.vpath, True)
         except Pebkac as ex:
@@ -1771,14 +1790,36 @@ class HttpCli(object):
             self.reply(b"", ex.code)
             return True
 
-    def handle_move(self) -> bool:
+    def handle_cpmv(self) -> bool:
         dst = self.headers["destination"]
-        dst = re.sub("^https?://[^/]+", "", dst).lstrip()
-        dst = unquotep(dst)
-        if not self._mv(self.vpath, dst.lstrip("/")):
-            return False
 
-        return True
+        # dolphin (kioworker/6.10) "webdav://127.0.0.1:3923/a/b.txt"
+        dst = re.sub("^[a-zA-Z]+://[^/]+", "", dst).lstrip()
+
+        if self.is_vproxied and dst.startswith(self.args.SRS):
+            dst = dst[len(self.args.RS) :]
+
+        if self.do_log:
+            self.log("%s %s  --//>  %s @%s" % (self.mode, self.req, dst, self.uname))
+            if "%" in self.req:
+                self.log("  `-- %r" % (self.vpath,))
+
+        if self.args.no_dav:
+            raise Pebkac(405, "WebDAV is disabled in server config")
+
+        dst = unquotep(dst)
+
+        # overwrite=True is default; rfc4918 9.8.4
+        zs = self.headers.get("overwrite", "").lower()
+        overwrite = zs not in ["f", "false"]
+
+        try:
+            fun = self._cp if self.mode == "COPY" else self._mv
+            return fun(self.vpath, dst.lstrip("/"), overwrite)
+        except Pebkac as ex:
+            if ex.code == 403:
+                ex.code = 401
+            raise
 
     def _applesan(self) -> bool:
         if self.args.dav_mac or "Darwin/" not in self.ua:
@@ -2511,6 +2552,16 @@ class HttpCli(object):
         vfs, rem = self.asrv.vfs.get(self.vpath, self.uname, False, True)
         dbv, vrem = vfs.get_dbv(rem)
 
+        name = sanitize_fn(name, "")
+        if (
+            not self.can_read
+            and self.can_write
+            and name.lower() in FN_EMB
+            and "wo_up_readme" not in dbv.flags
+        ):
+            name = "_wo_" + name
+
+        body["name"] = name
         body["vtop"] = dbv.vpath
         body["ptop"] = dbv.realpath
         body["prel"] = vrem
@@ -2948,9 +2999,6 @@ class HttpCli(object):
         vfs, rem = self.asrv.vfs.get(vpath, self.uname, False, True)
         rem = sanitize_vpath(rem, "/")
         fn = vfs.canonical(rem)
-        if not fn.startswith(vfs.realpath):
-            self.log("invalid mkdir %r %r" % (self.gctx, vpath), 1)
-            raise Pebkac(422)
 
         if not nullwrite:
             fdir = os.path.dirname(fn)
@@ -3451,6 +3499,7 @@ class HttpCli(object):
 
         fp = os.path.join(fp, fn)
         rem = "{}/{}".format(rp, fn).strip("/")
+        dbv, vrem = vfs.get_dbv(rem)
 
         if not rem.endswith(".md") and not self.can_delete:
             raise Pebkac(400, "only markdown pls")
@@ -3505,13 +3554,27 @@ class HttpCli(object):
             mdir, mfile = os.path.split(fp)
             fname, fext = mfile.rsplit(".", 1) if "." in mfile else (mfile, "md")
             mfile2 = "{}.{:.3f}.{}".format(fname, srv_lastmod, fext)
-            try:
+
+            dp = ""
+            hist_cfg = dbv.flags["md_hist"]
+            if hist_cfg == "v":
+                vrd = vsplit(vrem)[0]
+                zb = hashlib.sha512(afsenc(vrd)).digest()
+                zs = ub64enc(zb).decode("ascii")[:24].lower()
+                dp = "%s/md/%s/%s/%s" % (dbv.histpath, zs[:2], zs[2:4], zs)
+                self.log("moving old version to %s/%s" % (dp, mfile2))
+                if bos.makedirs(dp):
+                    with open(os.path.join(dp, "dir.txt"), "wb") as f:
+                        f.write(afsenc(vrd))
+            elif hist_cfg == "s":
                 dp = os.path.join(mdir, ".hist")
-                bos.mkdir(dp)
-                hidedir(dp)
-            except:
-                pass
-            wrename(self.log, fp, os.path.join(mdir, ".hist", mfile2), vfs.flags)
+                try:
+                    bos.mkdir(dp)
+                    hidedir(dp)
+                except:
+                    pass
+            if dp:
+                wrename(self.log, fp, os.path.join(dp, mfile2), vfs.flags)
 
         assert self.parser.gen  # !rm
         p_field, _, p_data = next(self.parser.gen)
@@ -3584,13 +3647,12 @@ class HttpCli(object):
             wunlink(self.log, fp, vfs.flags)
             raise Pebkac(403, t)
 
-        vfs, rem = vfs.get_dbv(rem)
         self.conn.hsrv.broker.say(
             "up2k.hash_file",
-            vfs.realpath,
-            vfs.vpath,
-            vfs.flags,
-            vsplit(rem)[0],
+            dbv.realpath,
+            dbv.vpath,
+            dbv.flags,
+            vsplit(vrem)[0],
             fn,
             self.ip,
             new_lastmod,
@@ -3694,8 +3756,7 @@ class HttpCli(object):
                     continue
                 fn = "%s/%s" % (abspath, fn)
                 if bos.path.isfile(fn):
-                    with open(fsenc(fn), "rb") as f:
-                        logues[n] = f.read().decode("utf-8")
+                    logues[n] = read_utf8(self.log, fsenc(fn), False)
                     if "exp" in vn.flags:
                         logues[n] = self._expand(
                             logues[n], vn.flags.get("exp_lg") or []
@@ -3716,9 +3777,8 @@ class HttpCli(object):
             for fn in fns:
                 fn = "%s/%s" % (abspath, fn)
                 if bos.path.isfile(fn):
-                    with open(fsenc(fn), "rb") as f:
-                        txt = f.read().decode("utf-8")
-                        break
+                    txt = read_utf8(self.log, fsenc(fn), False)
+                    break
 
             if txt and "exp" in vn.flags:
                 txt = self._expand(txt, vn.flags.get("exp_md") or [])
@@ -3750,6 +3810,19 @@ class HttpCli(object):
             txt = txt.replace("{{%s}}" % (ph,), sv)
 
         return txt
+
+    def _can_zip(self, volflags: dict[str, Any]) -> str:
+        lvl = volflags["zip_who"]
+        if self.args.no_zip or not lvl:
+            return "download-as-zip/tar is disabled in server config"
+        elif lvl <= 1 and not self.can_admin:
+            return "download-as-zip/tar is admin-only on this server"
+        elif lvl <= 2 and self.uname in ("", "*"):
+            return "you must be authenticated to download-as-zip/tar on this server"
+        elif self.args.ua_nozip and self.args.ua_nozip.search(self.ua):
+            t = "this URL contains no valuable information for bots/crawlers"
+            raise Pebkac(403, t)
+        return ""
 
     def tx_res(self, req_path: str) -> bool:
         status = 200
@@ -4283,8 +4356,9 @@ class HttpCli(object):
         rem: str,
         items: list[str],
     ) -> bool:
-        if self.args.no_zip:
-            raise Pebkac(400, "not enabled in server config")
+        t = self._can_zip(vn.flags)
+        if t:
+            raise Pebkac(400, t)
 
         logmsg = "{:4} {} ".format("", self.req)
         self.keepalive = False
@@ -4315,6 +4389,33 @@ class HttpCli(object):
             fn = fn.rstrip("/").split("/")[-1]
         else:
             fn = self.host.split(":")[0]
+
+        if vn.flags.get("zipmax") and (not self.uname or not "zipmaxu" in vn.flags):
+            maxs = vn.flags.get("zipmaxs_v") or 0
+            maxn = vn.flags.get("zipmaxn_v") or 0
+            nf = 0
+            nb = 0
+            fgen = vn.zipgen(
+                vpath, rem, set(items), self.uname, False, not self.args.no_scandir
+            )
+            t = "total size exceeds a limit specified in server config"
+            t = vn.flags.get("zipmaxt") or t
+            if maxs and maxn:
+                for zd in fgen:
+                    nf += 1
+                    nb += zd["st"].st_size
+                    if maxs < nb or maxn < nf:
+                        raise Pebkac(400, t)
+            elif maxs:
+                for zd in fgen:
+                    nb += zd["st"].st_size
+                    if maxs < nb:
+                        raise Pebkac(400, t)
+            elif maxn:
+                for zd in fgen:
+                    nf += 1
+                    if maxn < nf:
+                        raise Pebkac(400, t)
 
         safe = (string.ascii_letters + string.digits).replace("%", "")
         afn = "".join([x if x in safe.replace('"', "") else "_" for x in fn])
@@ -4781,7 +4882,7 @@ class HttpCli(object):
             self.reply(pt.encode("utf-8"), status=rc)
             return True
 
-        if "th" in self.ouparam:
+        if "th" in self.ouparam and str(self.ouparam["th"])[:1] in "jw":
             return self.tx_svg("e" + pt[:3])
 
         # most webdav clients will not send credentials until they
@@ -4789,9 +4890,12 @@ class HttpCli(object):
         # that the client is not a graphical browser
         if (
             rc == 403
-            and not self.pw
-            and not self.ua.startswith("Mozilla/")
+            and self.uname == "*"
             and "sec-fetch-site" not in self.headers
+            and (
+                not self.ua.startswith("Mozilla/")
+                or (self.args.dav_ua1 and self.args.dav_ua1.search(self.ua))
+            )
         ):
             rc = 401
             self.out_headers["WWW-Authenticate"] = 'Basic realm="a"'
@@ -4825,7 +4929,7 @@ class HttpCli(object):
 
     def scanvol(self) -> bool:
         if not self.can_admin:
-            raise Pebkac(403, "not allowed for user " + self.uname)
+            raise Pebkac(403, "'scanvol' not allowed for user " + self.uname)
 
         if self.args.no_rescan:
             raise Pebkac(403, "the rescan feature is disabled in server config")
@@ -4848,7 +4952,7 @@ class HttpCli(object):
             raise Pebkac(400, "only config files ('cfg') can be reloaded rn")
 
         if not self.avol:
-            raise Pebkac(403, "not allowed for user " + self.uname)
+            raise Pebkac(403, "'reload' not allowed for user " + self.uname)
 
         if self.args.no_reload:
             raise Pebkac(403, "the reload feature is disabled in server config")
@@ -4858,7 +4962,7 @@ class HttpCli(object):
 
     def tx_stack(self) -> bool:
         if not self.avol and not [x for x in self.wvol if x in self.rvol]:
-            raise Pebkac(403, "not allowed for user " + self.uname)
+            raise Pebkac(403, "'stack' not allowed for user " + self.uname)
 
         if self.args.no_stack:
             raise Pebkac(403, "the stackdump feature is disabled in server config")
@@ -4959,6 +5063,8 @@ class HttpCli(object):
     def get_dls(self) -> list[list[Any]]:
         ret = []
         dls = self.conn.hsrv.tdls
+        enshare = self.args.shr
+        shrs = enshare[1:]
         for dl_id, (t0, sz, vn, vp, uname) in self.conn.hsrv.tdli.items():
             t1, sent = dls[dl_id]
             if sent > 0x100000:  # 1m; buffers 2~4
@@ -4966,6 +5072,15 @@ class HttpCli(object):
             if self.uname not in vn.axs.uread:
                 vp = ""
             elif self.uname not in vn.axs.udot and (vp.startswith(".") or "/." in vp):
+                vp = ""
+            elif (
+                enshare
+                and vp.startswith(shrs)
+                and self.uname != vn.shr_owner
+                and self.uname not in vn.axs.uadmin
+                and self.uname not in self.args.shr_adm
+                and not dl_id.startswith(self.ip + ":")
+            ):
                 vp = ""
             if self.uname not in vn.axs.uadmin:
                 dl_id = uname = ""
@@ -5152,7 +5267,7 @@ class HttpCli(object):
             adm = "*" in vol.axs.uadmin or self.uname in vol.axs.uadmin
             dots = "*" in vol.axs.udot or self.uname in vol.axs.udot
 
-            lvl = int(vol.flags["ups_who"])
+            lvl = vol.flags["ups_who"]
             if not lvl:
                 continue
             elif lvl == 1 and not adm:
@@ -5421,7 +5536,9 @@ class HttpCli(object):
 
     def handle_rm(self, req: list[str]) -> bool:
         if not req and not self.can_delete:
-            raise Pebkac(403, "not allowed for user " + self.uname)
+            if self.mode == "DELETE" and self.uname == "*":
+                raise Pebkac(401, "authenticate")  # webdav
+            raise Pebkac(403, "'delete' not allowed for user " + self.uname)
 
         if self.args.no_del:
             raise Pebkac(403, "the delete feature is disabled in server config")
@@ -5455,14 +5572,22 @@ class HttpCli(object):
         if not dst:
             raise Pebkac(400, "need dst vpath")
 
-        return self._mv(self.vpath, dst.lstrip("/"))
+        return self._mv(self.vpath, dst.lstrip("/"), False)
 
-    def _mv(self, vsrc: str, vdst: str) -> bool:
+    def _mv(self, vsrc: str, vdst: str, overwrite: bool) -> bool:
         if self.args.no_mv:
             raise Pebkac(403, "the rename/move feature is disabled in server config")
 
-        self.asrv.vfs.get(vsrc, self.uname, True, False, True)
-        self.asrv.vfs.get(vdst, self.uname, False, True)
+        # `handle_cpmv` will catch 403 from these and raise 401
+        svn, srem = self.asrv.vfs.get(vsrc, self.uname, True, False, True)
+        dvn, drem = self.asrv.vfs.get(vdst, self.uname, False, True)
+
+        if overwrite:
+            dabs = dvn.canonical(drem)
+            if bos.path.exists(dabs):
+                self.log("overwriting %s" % (dabs,))
+                self.asrv.vfs.get(vdst, self.uname, False, True, False, True)
+                wunlink(self.log, dabs, dvn.flags)
 
         x = self.conn.hsrv.broker.ask("up2k.handle_mv", self.uname, self.ip, vsrc, vdst)
         self.loud_reply(x.get(), status=201)
@@ -5478,14 +5603,21 @@ class HttpCli(object):
         if not dst:
             raise Pebkac(400, "need dst vpath")
 
-        return self._cp(self.vpath, dst.lstrip("/"))
+        return self._cp(self.vpath, dst.lstrip("/"), False)
 
-    def _cp(self, vsrc: str, vdst: str) -> bool:
+    def _cp(self, vsrc: str, vdst: str, overwrite: bool) -> bool:
         if self.args.no_cp:
             raise Pebkac(403, "the copy feature is disabled in server config")
 
-        self.asrv.vfs.get(vsrc, self.uname, True, False)
-        self.asrv.vfs.get(vdst, self.uname, False, True)
+        svn, srem = self.asrv.vfs.get(vsrc, self.uname, True, False)
+        dvn, drem = self.asrv.vfs.get(vdst, self.uname, False, True)
+
+        if overwrite:
+            dabs = dvn.canonical(drem)
+            if bos.path.exists(dabs):
+                self.log("overwriting %s" % (dabs,))
+                self.asrv.vfs.get(vdst, self.uname, False, True, False, True)
+                wunlink(self.log, dabs, dvn.flags)
 
         x = self.conn.hsrv.broker.ask("up2k.handle_cp", self.uname, self.ip, vsrc, vdst)
         self.loud_reply(x.get(), status=201)
@@ -5678,7 +5810,13 @@ class HttpCli(object):
 
                 thp = None
                 if self.thumbcli and not nothumb:
-                    thp = self.thumbcli.get(dbv, vrem, int(st.st_mtime), th_fmt)
+                    try:
+                        thp = self.thumbcli.get(dbv, vrem, int(st.st_mtime), th_fmt)
+                    except Pebkac as ex:
+                        if ex.code == 500 and th_fmt[:1] in "jw":
+                            self.log("failed to convert [%s]:\n%s" % (abspath, ex), 3)
+                            return self.tx_svg("--error--\ncheck\nserver\nlog")
+                        raise
 
                 if thp:
                     return self.tx_file(thp)
@@ -5900,9 +6038,11 @@ class HttpCli(object):
         # check for old versions of files,
         # [num-backups, most-recent, hist-path]
         hist: dict[str, tuple[int, float, str]] = {}
-        histdir = os.path.join(fsroot, ".hist")
-        ptn = re.compile(r"(.*)\.([0-9]+\.[0-9]{3})(\.[^\.]+)$")
         try:
+            if vf["md_hist"] != "s":
+                raise Exception()
+            histdir = os.path.join(fsroot, ".hist")
+            ptn = RE_MDV
             for hfn in bos.listdir(histdir):
                 m = ptn.match(hfn)
                 if not m:
@@ -5932,8 +6072,11 @@ class HttpCli(object):
                 zs = self.gen_fk(2, self.args.dk_salt, abspath, 0, 0)[:add_dk]
                 ls_ret["dk"] = cgv["dk"] = zs
 
+        no_zip = bool(self._can_zip(vf))
+
         dirs = []
         files = []
+        ptn_hr = RE_HR
         for fn in ls_names:
             base = ""
             href = fn
@@ -5956,7 +6099,7 @@ class HttpCli(object):
             is_dir = stat.S_ISDIR(inf.st_mode)
             if is_dir:
                 href += "/"
-                if self.args.no_zip:
+                if no_zip:
                     margin = "DIR"
                 elif add_dk:
                     zs = absreal(fspath)
@@ -5969,7 +6112,7 @@ class HttpCli(object):
                         quotep(href),
                     )
             elif fn in hist:
-                margin = '<a href="%s.hist/%s">#%s</a>' % (
+                margin = '<a href="%s.hist/%s" rel="nofollow">#%s</a>' % (
                     base,
                     html_escape(hist[fn][2], quot=True, crlf=True),
                     hist[fn][0],
@@ -5988,11 +6131,13 @@ class HttpCli(object):
                 zd.second,
             )
 
-            try:
-                ext = "---" if is_dir else fn.rsplit(".", 1)[1]
+            if is_dir:
+                ext = "---"
+            elif "." in fn:
+                ext = ptn_hr.sub("@", fn.rsplit(".", 1)[1])
                 if len(ext) > 16:
                     ext = ext[:16]
-            except:
+            else:
                 ext = "%"
 
             if add_fk and not is_dir:
@@ -6169,6 +6314,10 @@ class HttpCli(object):
 
         doc = self.uparam.get("doc") if self.can_read else None
         if doc:
+            zp = self.args.ua_nodoc
+            if zp and zp.search(self.ua):
+                t = "this URL contains no valuable information for bots/crawlers"
+                raise Pebkac(403, t)
             j2a["docname"] = doc
             doctxt = None
             dfn = lnames.get(doc.lower())
@@ -6179,9 +6328,7 @@ class HttpCli(object):
                 docpath = os.path.join(abspath, doc)
                 sz = bos.path.getsize(docpath)
                 if sz < 1024 * self.args.txt_max:
-                    with open(fsenc(docpath), "rb") as f:
-                        doctxt = f.read().decode("utf-8", "replace")
-
+                    doctxt = read_utf8(self.log, fsenc(docpath), False)
                     if doc.lower().endswith(".md") and "exp" in vn.flags:
                         doctxt = self._expand(doctxt, vn.flags.get("exp_md") or [])
                 else:

@@ -1,19 +1,24 @@
 # coding: utf-8
 from __future__ import print_function, unicode_literals
 
+import errno
 import os
+import stat
 
 from .__init__ import TYPE_CHECKING
 from .authsrv import VFS
 from .bos import bos
 from .th_srv import EXTS_AC, HAVE_WEBP, thumb_path
-from .util import Cooldown
+from .util import Cooldown, Pebkac
 
 if True:  # pylint: disable=using-constant-test
     from typing import Optional, Union
 
 if TYPE_CHECKING:
     from .httpsrv import HttpSrv
+
+
+IOERROR = "reading the file was denied by the server os; either due to filesystem permissions, selinux, apparmor, or similar:\n%r"
 
 
 class ThumbCli(object):
@@ -124,7 +129,7 @@ class ThumbCli(object):
 
         tpath = thumb_path(histpath, rem, mtime, fmt, self.fmt_ffa)
         tpaths = [tpath]
-        if fmt == "w":
+        if fmt[:1] == "w":
             # also check for jpg (maybe webp is unavailable)
             tpaths.append(tpath.rsplit(".", 1)[0] + ".jpg")
 
@@ -157,8 +162,22 @@ class ThumbCli(object):
         if abort:
             return None
 
-        if not bos.path.getsize(os.path.join(ptop, rem)):
-            return None
+        ap = os.path.join(ptop, rem)
+        try:
+            st = bos.stat(ap)
+            if not st.st_size or not stat.S_ISREG(st.st_mode):
+                return None
+
+            with open(ap, "rb", 4) as f:
+                if not f.read(4):
+                    raise Exception()
+        except OSError as ex:
+            if ex.errno == errno.ENOENT:
+                raise Pebkac(404)
+            else:
+                raise Pebkac(500, IOERROR % (ex,))
+        except Exception as ex:
+            raise Pebkac(500, IOERROR % (ex,))
 
         x = self.broker.ask("thumbsrv.get", ptop, rem, mtime, fmt)
         return x.get()  # type: ignore

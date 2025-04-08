@@ -371,7 +371,7 @@ class TestDots(unittest.TestCase):
         return " ".join(tar)
 
     def curl(self, url, uname, binary=False, req=b""):
-        req = req or hdr(url, uname)
+        req = req or hdr(url.replace("th=x", "th=j"), uname)
         conn = self.conn.setbuf(req)
         HttpCli(conn).run()
         if binary:

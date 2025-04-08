@@ -50,6 +50,9 @@
 * give a 3rd argument to install it to your copyparty config
 * systemd service at [`systemd/cfssl.service`](systemd/cfssl.service)
 
+### [`zfs-tune.py`](zfs-tune.py)
+* optimizes databases for optimal performance when stored on a zfs filesystem; also see [openzfs docs](https://openzfs.github.io/openzfs-docs/Performance%20and%20Tuning/Workload%20Tuning.html#database-workloads) and specifically the SQLite subsection
+
 # OS integration
 init-scripts to start copyparty as a service
 * [`systemd/copyparty.service`](systemd/copyparty.service) runs the sfx normally

@@ -2,7 +2,6 @@
 from __future__ import print_function, unicode_literals
 
 import errno
-import gzip
 import hashlib
 import json
 import math
@@ -42,6 +41,7 @@ from .util import (
     fsenc,
     gen_filekey,
     gen_filekey_dbg,
+    gzip,
     hidedir,
     humansize,
     min_ex,
@@ -94,7 +94,7 @@ VF_AFFECTS_INDEXING = set(zsg.split(" "))
 
 SBUSY = "cannot receive uploads right now;\nserver busy with %s.\nPlease wait; the client will retry..."
 
-HINT_HISTPATH = "you could try moving the database to another location (preferably an SSD or NVME drive) using either the --hist argument (global option for all volumes), or the hist volflag (just for this volume)"
+HINT_HISTPATH = "you could try moving the database to another location (preferably an SSD or NVME drive) using either the --hist argument (global option for all volumes), or the hist volflag (just for this volume), or, if you want to keep the thumbnails in the current location and only move the database itself, then use --dbpath or volflag dbpath"
 
 
 NULLSTAT = os.stat_result((0, -1, -1, 0, 0, 0, 0, 0, 0, 0))
@@ -557,6 +557,7 @@ class Up2k(object):
             else:
                 # important; not deferred by db_act
                 timeout = self._check_lifetimes()
+                timeout = min(self._check_forget_ip(), timeout)
                 try:
                     if self.args.shr:
                         timeout = min(self._check_shares(), timeout)
@@ -616,6 +617,43 @@ class Up2k(object):
 
                 for v in vols:
                     volage[v] = now
+
+    def _check_forget_ip(self) -> float:
+        now = time.time()
+        timeout = now + 9001
+        for vp, vol in sorted(self.vfs.all_vols.items()):
+            maxage = vol.flags["forget_ip"]
+            if not maxage:
+                continue
+
+            cur = self.cur.get(vol.realpath)
+            if not cur:
+                continue
+
+            cutoff = now - maxage * 60
+
+            for _ in range(2):
+                q = "select ip, at from up where ip > '' order by +at limit 1"
+                hits = cur.execute(q).fetchall()
+                if not hits:
+                    break
+
+                remains = hits[0][1] - cutoff
+                if remains > 0:
+                    timeout = min(timeout, now + remains)
+                    break
+
+                q = "update up set ip = '' where ip > '' and at <= %d"
+                cur.execute(q % (cutoff,))
+                zi = cur.rowcount
+                cur.connection.commit()
+
+                t = "forget-ip(%d) removed %d IPs from db [/%s]"
+                self.log(t % (maxage, zi, vol.vpath))
+
+            timeout = min(timeout, now + 900)
+
+        return timeout
 
     def _check_lifetimes(self) -> float:
         now = time.time()
@@ -1058,9 +1096,9 @@ class Up2k(object):
         self, ptop: str, flags: dict[str, Any]
     ) -> Optional[tuple["sqlite3.Cursor", str]]:
         """mutex(main,reg) me"""
-        histpath = self.vfs.histtab.get(ptop)
+        histpath = self.vfs.dbpaths.get(ptop)
         if not histpath:
-            self.log("no histpath for %r" % (ptop,))
+            self.log("no dbpath for %r" % (ptop,))
             return None
 
         db_path = os.path.join(histpath, "up2k.db")
@@ -1081,7 +1119,7 @@ class Up2k(object):
         ft = "\033[0;32m{}{:.0}"
         ff = "\033[0;35m{}{:.0}"
         fv = "\033[0;36m{}:\033[90m{}"
-        zs = "html_head mv_re_r mv_re_t rm_re_r rm_re_t srch_re_dots srch_re_nodot"
+        zs = "ext_th_d html_head mv_re_r mv_re_t rm_re_r rm_re_t srch_re_dots srch_re_nodot zipmax zipmaxn_v zipmaxs_v"
         fx = set(zs.split())
         fd = vf_bmap()
         fd.update(vf_cmap())
@@ -1306,11 +1344,14 @@ class Up2k(object):
             ]
             excl += [absreal(x) for x in excl]
             excl += list(self.vfs.histtab.values())
+            excl += list(self.vfs.dbpaths.values())
             if WINDOWS:
                 excl = [x.replace("/", "\\") for x in excl]
             else:
                 # ~/.wine/dosdevices/z:/ and such
                 excl.extend(("/dev", "/proc", "/run", "/sys"))
+
+            excl = list({k: 1 for k in excl})
 
             if self.args.re_dirsz:
                 db.c.execute("delete from ds")
@@ -2880,7 +2921,6 @@ class Up2k(object):
             if ptop not in self.registry:
                 raise Pebkac(410, "location unavailable")
 
-        cj["name"] = sanitize_fn(cj["name"], "")
         cj["poke"] = now = self.db_act = self.vol_act[ptop] = time.time()
         wark = dwark = self._get_wark(cj)
         job = None
@@ -2916,9 +2956,14 @@ class Up2k(object):
                     self.salt, cj["size"], cj["lmod"], cj["prel"], cj["name"]
                 )
 
-            if vfs.flags.get("up_ts", "") == "fu" or not cj["lmod"]:
+            zi = cj["lmod"]
+            bad_mt = zi <= 0 or zi > 0xAAAAAAAA
+            if bad_mt or vfs.flags.get("up_ts", "") == "fu":
                 # force upload time rather than last-modified
                 cj["lmod"] = int(time.time())
+                if zi and bad_mt:
+                    t = "ignoring impossible last-modified time from client: %s"
+                    self.log(t % (zi,), 6)
 
             alts: list[tuple[int, int, dict[str, Any], "sqlite3.Cursor", str, str]] = []
             for ptop, cur in vols:
@@ -3193,6 +3238,7 @@ class Up2k(object):
                                     job["ptop"] = vfs.realpath
                                     job["vtop"] = vfs.vpath
                                     job["prel"] = rem
+                                    job["name"] = sanitize_fn(job["name"], "")
                                     if zvfs.vpath != vfs.vpath:
                                         # print(json.dumps(job, sort_keys=True, indent=4))
                                         job["hash"] = cj["hash"]
@@ -3335,7 +3381,17 @@ class Up2k(object):
             return fname
 
         fp = djoin(fdir, fname)
-        if job.get("replace") and bos.path.exists(fp):
+
+        ow = job.get("replace") and bos.path.exists(fp)
+        if ow and "mt" in str(job["replace"]).lower():
+            mts = bos.stat(fp).st_mtime
+            mtc = job["lmod"]
+            if mtc < mts:
+                t = "will not overwrite; server %d sec newer than client; %d > %d %r"
+                self.log(t % (mts - mtc, mts, mtc, fp))
+                ow = False
+
+        if ow:
             self.log("replacing existing file at %r" % (fp,))
             cur = None
             ptop = job["ptop"]
@@ -3373,6 +3429,7 @@ class Up2k(object):
         rm: bool = False,
         lmod: float = 0,
         fsrc: Optional[str] = None,
+        is_mv: bool = False,
     ) -> None:
         if src == dst or (fsrc and fsrc == dst):
             t = "symlinking a file to itself?? orig(%s) fsrc(%s) link(%s)"
@@ -3389,7 +3446,7 @@ class Up2k(object):
 
         linked = False
         try:
-            if not flags.get("dedup"):
+            if not is_mv and not flags.get("dedup"):
                 raise Exception("dedup is disabled in config")
 
             lsrc = src
@@ -3655,8 +3712,9 @@ class Up2k(object):
         if self.idx_wark(vflags, *z2):
             del self.registry[ptop][wark]
         else:
-            for k in "host tnam busy sprs poke t0c".split():
+            for k in "host tnam busy sprs poke".split():
                 del job[k]
+            job.pop("t0c", None)
             job["t0"] = int(job["t0"])
             job["hash"] = []
             job["done"] = 1
@@ -3789,7 +3847,7 @@ class Up2k(object):
             db_ip = ""
         else:
             # plugins may expect this to look like an actual IP
-            db_ip = "1.1.1.1" if self.args.no_db_ip else ip
+            db_ip = "1.1.1.1" if "no_db_ip" in vflags else ip
 
         sql = "insert into up values (?,?,?,?,?,?,?)"
         v = (dwark, int(ts), sz, rd, fn, db_ip, int(at or 0))
@@ -4548,7 +4606,7 @@ class Up2k(object):
                 dlink = bos.readlink(sabs)
                 dlink = os.path.join(os.path.dirname(sabs), dlink)
                 dlink = bos.path.abspath(dlink)
-                self._symlink(dlink, dabs, dvn.flags, lmod=ftime)
+                self._symlink(dlink, dabs, dvn.flags, lmod=ftime, is_mv=True)
                 wunlink(self.log, sabs, svn.flags)
             else:
                 atomic_move(self.log, sabs, dabs, svn.flags)
@@ -4628,12 +4686,12 @@ class Up2k(object):
         Optional[str],
         Optional[int],
         Optional[int],
-        Optional[str],
+        str,
         Optional[int],
     ]:
         cur = self.cur.get(ptop)
         if not cur:
-            return None, None, None, None, None, None
+            return None, None, None, None, "", None
 
         rd, fn = vsplit(vrem)
         q = "select w, mt, sz, ip, at from up where rd=? and fn=? limit 1"
@@ -4647,7 +4705,7 @@ class Up2k(object):
         if hit:
             wark, ftime, fsize, ip, at = hit
             return cur, wark, ftime, fsize, ip, at
-        return cur, None, None, None, None, None
+        return cur, None, None, None, "", None
 
     def _forget_file(
         self,
@@ -4767,7 +4825,7 @@ class Up2k(object):
             flags = self.flags.get(ptop) or {}
             atomic_move(self.log, sabs, slabs, flags)
             bos.utime(slabs, (int(time.time()), int(mt)), False)
-            self._symlink(slabs, sabs, flags, False)
+            self._symlink(slabs, sabs, flags, False, is_mv=True)
             full[slabs] = (ptop, rem)
             sabs = slabs
 
@@ -4826,7 +4884,9 @@ class Up2k(object):
             # (for example a volume with symlinked dupes but no --dedup);
             # fsrc=sabs is then a source that currently resolves to copy
 
-            self._symlink(dabs, alink, flags, False, lmod=lmod or 0, fsrc=sabs)
+            self._symlink(
+                dabs, alink, flags, False, lmod=lmod or 0, fsrc=sabs, is_mv=True
+            )
 
         return len(full) + len(links)
 
@@ -4940,6 +5000,7 @@ class Up2k(object):
                     job["ptop"] = vfs.realpath
                     job["vtop"] = vfs.vpath
                     job["prel"] = rem
+                    job["name"] = sanitize_fn(job["name"], "")
                     if zvfs.vpath != vfs.vpath:
                         self.log("xbu reloc2:%d..." % (depth,), 6)
                         return self._handle_json(job, depth + 1)
@@ -5044,7 +5105,7 @@ class Up2k(object):
 
     def _snap_reg(self, ptop: str, reg: dict[str, dict[str, Any]]) -> None:
         now = time.time()
-        histpath = self.vfs.histtab.get(ptop)
+        histpath = self.vfs.dbpaths.get(ptop)
         if not histpath:
             return
 

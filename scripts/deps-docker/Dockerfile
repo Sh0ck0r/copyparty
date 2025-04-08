@@ -3,7 +3,7 @@ WORKDIR /z
 ENV     ver_asmcrypto=c72492f4a66e17a0e5dd8ad7874de354f3ccdaa5 \
         ver_hashwasm=4.12.0 \
         ver_marked=4.3.0 \
-        ver_dompf=3.2.3 \
+        ver_dompf=3.2.4 \
         ver_mde=2.18.0 \
         ver_codemirror=5.65.18 \
         ver_fontawesome=5.13.0 \
@@ -12,7 +12,7 @@ ENV     ver_asmcrypto=c72492f4a66e17a0e5dd8ad7874de354f3ccdaa5 \
 
 # versioncheck:
 # https://github.com/markedjs/marked/releases
-# https://github.com/Ionaru/easy-markdown-editor/tags
+# https://github.com/Ionaru/easy-markdown-editor/tags  # ignore 2.20.0
 # https://github.com/codemirror/codemirror5/releases
 # https://github.com/cure53/DOMPurify/releases
 # https://github.com/Daninet/hash-wasm/releases

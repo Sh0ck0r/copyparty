@@ -885,6 +885,25 @@ function up2k_init(subtle) {
     bcfg_bind(uc, 'upnag', 'upnag', false, set_upnag);
     bcfg_bind(uc, 'upsfx', 'upsfx', false, set_upsfx);
 
+    uc.ow = parseInt(sread('u2ow', ['0', '1', '2']) || u2ow);
+    uc.owt = ['🛡️', '🕒', '♻️'];
+    function set_ow() {
+        QS('label[for="u2ow"]').innerHTML = uc.owt[uc.ow];
+        ebi('u2ow').checked  = true; //cosmetic
+    }
+    ebi('u2ow').onclick = function (e) {
+        ev(e);
+        if (++uc.ow > 2)
+            uc.ow = 0;
+        swrite('u2ow', uc.ow);
+        set_ow();
+        if (uc.ow && !has(perms, 'delete'))
+            toast.warn(10, L.u_enoow, 'noow');
+        else if (toast.tag == 'noow')
+            toast.hide();
+    };
+    set_ow();
+
     var st = {
         "files": [],
         "nfile": {
@@ -1300,7 +1319,7 @@ function up2k_init(subtle) {
         if (bad_files.length) {
             var msg = L.u_badf.format(bad_files.length, ntot);
             for (var a = 0, aa = Math.min(20, bad_files.length); a < aa; a++)
-                msg += '-- ' + bad_files[a][1] + '\n';
+                msg += '-- ' + esc(bad_files[a][1]) + '\n';
 
             msg += L.u_just1;
             return modal.alert(msg, function () {
@@ -1312,7 +1331,7 @@ function up2k_init(subtle) {
         if (nil_files.length) {
             var msg = L.u_blankf.format(nil_files.length, ntot);
             for (var a = 0, aa = Math.min(20, nil_files.length); a < aa; a++)
-                msg += '-- ' + nil_files[a][1] + '\n';
+                msg += '-- ' + esc(nil_files[a][1]) + '\n';
 
             msg += L.u_just1;
             return modal.confirm(msg, function () {
@@ -1324,10 +1343,68 @@ function up2k_init(subtle) {
             });
         }
 
+        var fps = new Set(), pdp = '';
+        for (var a = 0; a < good_files.length; a++) {
+            var fp = good_files[a][1],
+                dp = vsplit(fp)[0];
+            fps.add(fp);
+            if (pdp != dp) {
+                pdp = dp;
+                dp = dp.slice(0, -1);
+                while (dp) {
+                    fps.add(dp);
+                    dp = vsplit(dp)[0].slice(0, -1);
+                }
+            }
+        }
+
+        var junk = [], rmi = [];
+        for (var a = 0; a < good_files.length; a++) {
+            var fn = good_files[a][1];
+            if (fn.indexOf("/.") < 0 && fn.indexOf("/__MACOS") < 0)
+                continue;
+
+            if (/\/__MACOS|\/\.(DS_Store|AppleDouble|LSOverride|DocumentRevisions-|fseventsd|Spotlight-V[0-9]|TemporaryItems|Trashes|VolumeIcon\.icns|com\.apple\.timemachine\.donotpresent|AppleDB|AppleDesktop|apdisk)/.exec(fn)) {
+                junk.push(good_files[a]);
+                rmi.push(a);
+                continue;
+            }
+
+            if (fn.indexOf("/._") + 1 &&
+                fps.has(fn.replace("/._", "/")) &&
+                fn.split("/").pop().startsWith("._") &&
+                !has(rmi, a)
+            ) {
+                junk.push(good_files[a]);
+                rmi.push(a);
+            }
+        }
+
+        if (!junk.length)
+            return gotallfiles2(good_files);
+
+        junk.sort();
+        rmi.sort(function (a, b) { return a - b; });
+
+        var msg = L.u_applef.format(junk.length, good_files.length);
+        for (var a = 0, aa = Math.min(1000, junk.length); a < aa; a++)
+            msg += '-- ' + esc(junk[a][1]) + '\n';
+
+        return modal.confirm(msg, function () {
+            for (var a = rmi.length - 1; a >= 0; a--)
+                good_files.splice(rmi[a], 1);
+
+            start_actx();
+            gotallfiles2(good_files);
+        }, function () {
+            start_actx();
+            gotallfiles2(good_files);
+        });
+    }
+
+    function gotallfiles2(good_files) {
         good_files.sort(function (a, b) {
-            a = a[1];
-            b = b[1];
-            return a < b ? -1 : a > b ? 1 : 0;
+            return a[1] < b[1] ? -1 : 1;
         });
 
         var msg = [];
@@ -1380,9 +1457,7 @@ function up2k_init(subtle) {
 
         if (!uc.az)
             good_files.sort(function (a, b) {
-                a = a[0].size;
-                b = b[0].size;
-                return a < b ? -1 : a > b ? 1 : 0;
+                return a[0].size - b[0].size;
             });
 
         for (var a = 0; a < good_files.length; a++) {
@@ -1390,7 +1465,7 @@ function up2k_init(subtle) {
                 name = good_files[a][1],
                 fdir = evpath,
                 now = Date.now(),
-                lmod = uc.u2ts ? (fobj.lastModified || now) : 0,
+                lmod = (uc.u2ts && fobj.lastModified) || 0,
                 ofs = name.lastIndexOf('/') + 1;
 
             if (ofs) {
@@ -2054,8 +2129,8 @@ function up2k_init(subtle) {
                 try { orz(e); } catch (ex) { vis_exh(ex + '', 'up2k.js', '', '', ex); }
             };
             reader.onerror = function () {
-                var err = reader.error + '';
-                var handled = false;
+                var err = esc('' + reader.error),
+                    handled = false;
 
                 if (err.indexOf('NotReadableError') !== -1 || // win10-chrome defender
                     err.indexOf('NotFoundError') !== -1  // macos-firefox permissions
@@ -2279,7 +2354,7 @@ function up2k_init(subtle) {
         xhr.onerror = xhr.ontimeout = function () {
             console.log('head onerror, retrying', t.name, t);
             if (!toast.visible)
-                toast.warn(9.98, L.u_enethd + "\n\nfile: " + t.name, t);
+                toast.warn(9.98, L.u_enethd + "\n\nfile: " + esc(t.name), t);
 
             apop(st.busy.head, t);
             st.todo.head.unshift(t);
@@ -2354,7 +2429,7 @@ function up2k_init(subtle) {
                 return console.log('zombie handshake onerror', t.name, t);
 
             if (!toast.visible)
-                toast.warn(9.98, L.u_eneths + "\n\nfile: " + t.name, t);
+                toast.warn(9.98, L.u_eneths + "\n\nfile: " + esc(t.name), t);
 
             console.log('handshake onerror, retrying', t.name, t);
             apop(st.busy.handshake, t);
@@ -2459,7 +2534,7 @@ function up2k_init(subtle) {
                     var idx = t.hash.indexOf(missing[a]);
                     if (idx < 0)
                         return modal.alert('wtf negative index for hash "{0}" in task:\n{1}'.format(
-                            missing[a], JSON.stringify(t)));
+                            missing[a], esc(JSON.stringify(t))));
 
                     t.postlist.push(idx);
                     cbd[idx] = 0;
@@ -2613,7 +2688,7 @@ function up2k_init(subtle) {
                     return toast.err(0, L.u_ehsdf + "\n\n" + rsp.replace(/.*; /, ''));
 
                 err = t.t_uploading ? L.u_ehsfin : t.srch ? L.u_ehssrch : L.u_ehsinit;
-                xhrchk(xhr, err + "\n\nfile: " + t.name + "\n\nerror ", "404, target folder not found", "warn", t);
+                xhrchk(xhr, err + "\n\nfile: " + esc(t.name) + "\n\nerror ", "404, target folder not found", "warn", t);
             }
         }
         xhr.onload = function (e) {
@@ -2633,6 +2708,13 @@ function up2k_init(subtle) {
             req.rand = true;
         else if (t.umod)
             req.umod = true;
+
+        if (!t.srch) {
+            if (uc.ow == 1)
+                req.replace = 'mt';
+            if (uc.ow == 2)
+                req.replace = true;
+        }
 
         xhr.open('POST', t.purl, true);
         xhr.responseType = 'text';
@@ -2763,7 +2845,7 @@ function up2k_init(subtle) {
                     toast.inf(10, L.u_cbusy);
             }
             else {
-                xhrchk(xhr, L.u_cuerr2.format(snpart, Math.ceil(t.size / chunksize), t.name), "404, target folder not found (???)", "warn", t);
+                xhrchk(xhr, L.u_cuerr2.format(snpart, Math.ceil(t.size / chunksize), esc(t.name)), "404, target folder not found (???)", "warn", t);
                 chill(t);
             }
             orz2(xhr);
@@ -2807,7 +2889,7 @@ function up2k_init(subtle) {
                 xhr.bsent = 0;
 
                 if (!toast.visible)
-                    toast.warn(9.98, L.u_cuerr.format(snpart, Math.ceil(t.size / chunksize), t.name), t);
+                    toast.warn(9.98, L.u_cuerr.format(snpart, Math.ceil(t.size / chunksize), esc(t.name)), t);
 
                 t.nojoin = t.nojoin || t.postlist.length;  // maybe rproxy postsize limit
                 console.log('chunkpit onerror,', t.name, t);

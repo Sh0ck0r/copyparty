@@ -33,12 +33,6 @@ if you are introducing a new ttf/woff font, don't forget to declare the font its
 }
 ```
 
-and because textboxes don't inherit fonts by default, you can force it like this:
-
-```css
-input[type=text], input[type=submit], input[type=button] { font-family: var(--font-main) }
-```
-
 and if you want to have a monospace font in the fancy markdown editor, do this:
 
 ```css
@@ -46,6 +40,20 @@ and if you want to have a monospace font in the fancy markdown editor, do this:
 ```
 
 NB: `<textarea id="mt">` and `<div id="mtr">` in the regular markdown editor must have the same font; none of the suggestions above will cause any issues but keep it in mind if you're getting creative
+
+
+# boring loader spinner
+
+replace the 🌲 with a spinning circle using commandline args:
+
+`--spinner ',padding:0;border-radius:9em;border:.2em solid #444;border-top:.2em solid #fc0'`
+
+or config file example:
+
+```yaml
+[global]
+  spinner: ,padding:0;border-radius:9em;border:.2em solid #444;border-top:.2em solid #fc0
+```
 
 
 # `<head>`
@@ -60,6 +68,8 @@ if the value starts with `%` it will assume a jinja2 template and expand it; the
 # translations
 
 add your own translations by using the english or norwegian one from `browser.js` as a template
+
+> ⚠ Please do not contribute translations to [RTL (Right-to-Left) languages](https://en.wikipedia.org/wiki/Right-to-left_script) for now; the javascript is [not ready](https://github.com/9001/copyparty/blob/hovudstraum/docs/rice/rtl.patch) to deal with it
 
 the easy way is to open up and modify `browser.js` in your own installation; depending on how you installed copyparty it might be named `browser.js.gz` instead, in which case just decompress it, restart copyparty, and start editing it anyways
 

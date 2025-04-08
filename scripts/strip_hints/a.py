@@ -84,6 +84,9 @@ def uh2(fp):
         if "  # !rm" in ln:
             continue
 
+        if ln.endswith("TYPE_CHECKING"):
+            ln = ln.replace("from typing import TYPE_CHECKING", "TYPE_CHECKING = False")
+
         lns.append(ln)
 
     cs = "\n".join(lns)

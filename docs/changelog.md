@@ -1,4 +1,260 @@
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  
+# 2025-0316-2002  `v1.16.17`  boot2party
+
+## NEW: make it a bootable usb flashdrive
+
+get the party going anywhere, anytime, no OS required! [download flashdrive image](https://a.ocv.me/pub/stuff/edcd001/enterprise-edition/) or watch the [low-effort demo video](https://a.ocv.me/pub/stuff/edcd001/enterprise-edition/hub-demo-hq.webm) which eventually gets to the copyparty part after showing off a bunch of other stuff on there
+
+* there is [source code](https://github.com/9001/asm/tree/hovudstraum/p/hub) and [build instructions](https://github.com/9001/asm/tree/hovudstraum/p/hub/sm/how2build) too
+* please don't take this too seriously
+
+## 🧪 new features
+
+* option to specify max-size for download-as-zip/tar 494179bd 0a33336d
+  * either the total download size (`--zipmaxs 500M`), and/or max number of files (`--zipmaxn 9k`)
+  * applies to all uesrs by default; can also ignore limits for authorized users (`--zipmaxu`)
+  * errormessage can be customized with `--zipmaxt "winter is coming... but this download isn't"`
+* [appledoubles](https://a.ocv.me/pub/stuff/?doc=appledoubles-and-friends.txt) are detected and skipped when uploading with the browser-UI 78208405
+* IdP-volumes can be filtered by group 9c2c4237
+  * `[/users/${u}]` in a config-file creates the volume for all users like before
+  * `[/users/${u%+canwrite}]` only if the user is in the `canwrite` group
+  * `[/users/${u%-admins}]` only if the user is NOT in the `admins` group
+
+## 🩹 bugfixes
+
+* when moving a folder with symlinks, don't expand them into full files 5ab09769
+  * absolute symlinks are moved as-is; relative symlinks are rewritten so they still point to the same file when possible (if both source and destination are indexed in the db)
+  * the previous behavior was good for un-deduplicating files after changing the server-settings, but was too inconvenient for all other usecases
+* #146 fix downloading from shares when `-j0` enabled 8417098c
+* only show the download-as-zip link when the user is actually allowed to 14bb2999
+* the suggestions in the serverlog regarding how to fix incorrect X-Forwarded-For settings would be incorrect if the reverse-proxy used IPv6 to communicate with copyparty 16462ee5
+* set nofollow on `?doc` links so crawlers don't download binary files as text 6a2644fe
+
+## 🔧 other changes
+
+* #147 IdP: fix the warning about dangerous misconfigurations to be more accurate 29a17ae2
+* #143 print a warning on incorrect character-encoding in textfiles (config-files, logues, readmes etc.) 25974d66
+* copyparty.exe: update to jinja 3.1.6 (copyparty was *not affected* by the jinja-3.1.5 vuln)
+
+
+
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  
+# 2025-0228-1846  `v1.16.16`  lemon melon cookie
+
+<img src="https://github.com/9001/copyparty/raw/hovudstraum/docs/logo.svg" width="250" align="right"/>
+
+webdev is [like a lemon](https://youtu.be/HPURbfKb7to) sometimes
+
+* read-only demo server at https://a.ocv.me/pub/demo/
+* [docker image](https://github.com/9001/copyparty/tree/hovudstraum/scripts/docker) ╱ [similar software](https://github.com/9001/copyparty/blob/hovudstraum/docs/versus.md) ╱ [client testbed](https://cd.ocv.me/b/)
+
+there is a [discord server](https://discord.gg/25J8CdTT6G) with an `@everyone` in case of future important updates, such as [vulnerabilities](https://github.com/9001/copyparty/security) (most recently 2025-02-25)
+
+## recent important news
+
+* [v1.16.15 (2025-02-25)](https://github.com/9001/copyparty/releases/tag/v1.16.15) fixed low-severity xss when uploading maliciously-named files
+* [v1.15.0 (2024-09-08)](https://github.com/9001/copyparty/releases/tag/v1.15.0) changed upload deduplication to be default-disabled
+* [v1.14.3 (2024-08-30)](https://github.com/9001/copyparty/releases/tag/v1.14.3) fixed a bug that was introduced in v1.13.8 (2024-08-13); this bug could lead to **data loss** -- see the v1.14.3 release-notes for details
+
+## 🧪 new features
+
+* #142 workaround android-chrome timestamp bug 5e12abbb
+  * all files were uploaded with last-modified year 1601 in specific recent versions of chrome
+  * https://issues.chromium.org/issues/393149335 has the actual fix; will be out soon
+
+## 🩹 bugfixes
+
+* add helptext for volflags `dk`, `dks`, `dky` 65a7706f
+* fix false-positive warning when disabling a global option per-volume by unsetting the volflag
+
+## 🔧 other changes
+
+* #140 nixos: @daimond113 fixed a warning in the nixpkg (thx!) e0fe2b97
+
+
+
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  
+# 2025-0225-0017  `v1.16.15`  fix low-severity vuln
+
+<img src="https://github.com/9001/copyparty/raw/hovudstraum/docs/logo.svg" width="250" align="right"/>
+
+* read-only demo server at https://a.ocv.me/pub/demo/
+* [docker image](https://github.com/9001/copyparty/tree/hovudstraum/scripts/docker) ╱ [similar software](https://github.com/9001/copyparty/blob/hovudstraum/docs/versus.md) ╱ [client testbed](https://cd.ocv.me/b/)
+
+## ⚠️ this fixes a minor vulnerability; CVE-score `3.6`/`10`
+
+[GHSA-m2jw-cj8v-937r](https://github.com/9001/copyparty/security/advisories/GHSA-m2jw-cj8v-937r) aka [CVE-2025-27145](https://www.cve.org/CVERecord?id=CVE-2025-27145) could let an attacker run arbitrary javascript by tricking an authenticated user into uploading files with malicious filenames
+
+* ...but it required some clever social engineering, and is **not likely** to be a cause for concern... ah, better safe than sorry
+
+there is a [discord server](https://discord.gg/25J8CdTT6G) with an `@everyone` in case of future important updates, such as [vulnerabilities](https://github.com/9001/copyparty/security) (most recently 2025-02-25)
+
+## recent important news
+
+* [v1.15.0 (2024-09-08)](https://github.com/9001/copyparty/releases/tag/v1.15.0) changed upload deduplication to be default-disabled
+* [v1.14.3 (2024-08-30)](https://github.com/9001/copyparty/releases/tag/v1.14.3) fixed a bug that was introduced in v1.13.8 (2024-08-13); this bug could lead to **data loss** -- see the v1.14.3 release-notes for details
+
+## 🧪 new features
+
+* nothing this time
+
+## 🩹 bugfixes
+
+* fix [GHSA-m2jw-cj8v-937r](https://github.com/9001/copyparty/security/advisories/GHSA-m2jw-cj8v-937r) / [CVE-2025-27145](https://www.cve.org/CVERecord?id=CVE-2025-27145) in 438ea6cc
+  * when trying to upload an empty files by dragging it into the browser, the filename would be rendered as HTML, allowing javascript injection if the filename was malicious
+  * issue discovered and reported by @JayPatel48 (thx!)
+* related issues in errorhandling of uploads 499ae1c7 36866f1d
+  * these all had the same consequences as the GHSA above, but a network outage was necessary to trigger them
+    * which would probably have the lucky side-effect of blocking the javascript download, nice
+* paranoid fixing of probably-not-even-issues 3adbb2ff
+* fix some markdown / texteditor bugs 407531bc
+  * only indicate file-versions for markdown files in listings, since it's tricky to edit non-textfiles otherwise
+  * CTRL-C followed by CTRL-V and CTRL-Z in a single-line file would make a character fall off
+  * ensure safety of extensions
+
+## 🔧 other changes
+
+* readme:
+  * mention support for running the server on risc-v 6d102fc8
+  * mention that the [sony psp](https://github.com/user-attachments/assets/9d21f020-1110-4652-abeb-6fc09c533d4f) can browse and upload 598a29a7
+
+----
+
+# 💾 what to download?
+| download link | is it good? | description |
+| -- | -- | -- |
+| **[copyparty-sfx.py](https://github.com/9001/copyparty/releases/latest/download/copyparty-sfx.py)** | ✅ the best 👍 | runs anywhere! only needs python |
+| [a docker image](https://github.com/9001/copyparty/blob/hovudstraum/scripts/docker/README.md) | it's ok | good if you prefer docker 🐋 |
+| [copyparty.exe](https://github.com/9001/copyparty/releases/latest/download/copyparty.exe) |  ⚠️ [acceptable](https://github.com/9001/copyparty#copypartyexe) | for [win8](https://user-images.githubusercontent.com/241032/221445946-1e328e56-8c5b-44a9-8b9f-dee84d942535.png) or later; built-in thumbnailer |
+| [u2c.exe](https://github.com/9001/copyparty/releases/download/v1.16.14/u2c.exe) | ⚠️ acceptable | [CLI uploader](https://github.com/9001/copyparty/blob/hovudstraum/bin/u2c.py) as a win7+ exe ([video](https://a.ocv.me/pub/demo/pics-vids/u2cli.webm)) |
+| [copyparty.pyz](https://github.com/9001/copyparty/releases/latest/download/copyparty.pyz) | ⚠️ acceptable | similar to the regular sfx, [mostly worse](https://github.com/9001/copyparty#zipapp) |
+| [copyparty32.exe](https://github.com/9001/copyparty/releases/latest/download/copyparty32.exe) | ⛔️ [dangerous](https://github.com/9001/copyparty#copypartyexe) | for [win7](https://user-images.githubusercontent.com/241032/221445944-ae85d1f4-d351-4837-b130-82cab57d6cca.png) -- never expose to the internet! |
+| [cpp-winpe64.exe](https://github.com/9001/copyparty/releases/download/v1.16.5/copyparty-winpe64.exe) | ⛔️ dangerous | runs on [64bit WinPE](https://user-images.githubusercontent.com/241032/205454984-e6b550df-3c49-486d-9267-1614078dd0dd.png), otherwise useless |
+
+* except for [u2c.exe](https://github.com/9001/copyparty/releases/download/v1.16.14/u2c.exe), all of the options above are mostly equivalent
+* the zip and tar.gz files below are just source code
+* python packages are available at [PyPI](https://pypi.org/project/copyparty/#files)
+
+
+
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  
+# 2025-0219-2309  `v1.16.14`  overwrite by upload
+
+## 🧪 new features
+
+* #139 overwrite existing files by uploading over them e9f78ea7
+  * default-disabled; a new togglebutton in the upload-UI configures it
+  * can optionally compare last-modified-time and only overwrite older files
+* [GDPR compliance](https://github.com/9001/copyparty#GDPR-compliance) (maybe/probably) 4be0d426
+
+## 🩹 bugfixes
+
+* some cosmetic volflag stuff, all harmless b190e676
+  * disabling a volflag `foo` with `-foo` shows a warning that `-foo` was not a recognized volflag, but it still does the right thing
+  * some volflags give the *"unrecognized volflag, will ignore"* warning, but not to worry, they still work just fine:
+    * `xz` to allow serverside xz-compression of uploaded files 
+* the option to customize the loader-spinner would glitch out during the initial page load 7d7d5d6c
+
+## 🔧 other changes
+
+* [randpic.py](https://github.com/9001/copyparty/blob/hovudstraum/bin/handlers/randpic.py), new 404-handler example, returns a random pic from a folder 60d5f271
+* readme: [howto permanent cloudflare tunnel](https://github.com/9001/copyparty#permanent-cloudflare-tunnel) for easy hosting from home 2beb2acc
+* [synology-dsm](https://github.com/9001/copyparty/blob/hovudstraum/docs/synology-dsm.md): mention how to update the docker image 56ce5919
+* spinner improvements 6858cb06
+
+
+
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  
+# 2025-0213-2057  `v1.16.13`  configure with confidence
+
+## 🧪 new features
+
+* make the config-parser more helpful regarding volflags a255db70
+  * if an unrecognized volflag is specified, print a warning instead of silently ignoring it
+  * understand volflag-names with Uppercase and/or kebab-case (dashes), and not just snake_case (underscores)
+  * improve `--help-flags` to mention and explain all available flags
+* #136 WebDAV: support COPY 62ee7f69
+  * also support overwrite of existing target files (default-enabled according to the spec)
+    * the user must have the delete-permission to actually replace files
+* option to specify custom icons for certain file extensions 7e4702cf
+  * see `--ext-th` mentioned briefly in the [thumbnails section](https://github.com/9001/copyparty/#thumbnails)
+* option to replace the loading-spinner animation 685f0869
+  * including how to [make it exceptionally normal-looking](https://github.com/9001/copyparty/tree/hovudstraum/docs/rice#boring-loader-spinner)
+
+## 🩹 bugfixes
+
+* #136 WebDAV fixes 62ee7f69
+  * COPY/MOVE/MKCOL: challenge clients to provide the password as necessary
+    * most clients only need this in PROPFIND, but KDE-Dolphin is more picky
+  * MOVE: support `webdav://` Destination prefix as used by Dolphin, probably others
+* #136 WebDAV: improve support for KDE-Dolphin as client 9d769027
+  * it masquerades as a graphical browser yet still expects 401, so special-case it with a useragent scan
+
+## 🔧 other changes
+
+* Docker-only: quick hacky fix for the [musl CVE](https://www.openwall.com/lists/musl/2025/02/13/1) until the official fix is out 4d6626b0
+  * the docker images will be rebuilt when `musl-1.2.5-r9.apk` is released, in 6~24h or so
+  * until then, there is no support for reading korean XML files when running in docker
+
+
+
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  
+# 2025-0209-2331  `v1.16.12`  RTT
+
+## 🧪 new features
+
+* show rtt (network latency to server, including request processing time) in the top status text d27f1104 
+  * and log the client-reported RTT to serverlog 20ddeb6e
+* remember file selection when changing folders c7db08ed
+  * good for when you accidentally navigate elsewhere
+* option to restrict download-as-zip/tar to admins-only c87af9e8
+* #135 add [bubbleparty](https://github.com/9001/copyparty/blob/hovudstraum/bin/README.md#bubblepartysh), thx @coderofsalvation! 3582a100
+  * runs copyparty in a [sandbox](https://github.com/containers/bubblewrap), making it harder to gain unintended access through bugs in python or copyparty
+  * better alternative to [prisonparty](https://github.com/9001/copyparty/tree/hovudstraum/bin#prisonpartysh), more similar to [the sandboxing in the nixos package](https://github.com/9001/copyparty/blob/7dda77dcb/contrib/nixos/modules/copyparty.nix#L232-L272)
+* new plugin: [quickmove](https://github.com/9001/copyparty/blob/hovudstraum/contrib/plugins/quickmove.js) 46f9e9ef
+  * adds hotkey `W` to quickly move selected files into a subfolder
+* #133 new plugin: [graft-thumbs.js](https://github.com/9001/copyparty/blob/hovudstraum/contrib/plugins/graft-thumbs.js) 6c202eff
+  * in folders with foobar.mp3 and foobar.png, can copy the thumbnail from the png to the jpg (and then hide the png)
+* handlers: add [http-redirect example](https://github.com/9001/copyparty/blob/hovudstraum/bin/handlers/redirect.py) 22cbd2db
+* add [ping.html](https://github.com/9001/copyparty/blob/hovudstraum/srv/ping.html) 7de9d15a 910797cc
+
+## 🩹 bugfixes
+
+* improve iPad detection so they get opus instead of mp3 12dcea4f
+
+## 🔧 other changes
+
+* safeguard against accidental config loss cd71b505
+  * while no copyparty servers have ended up in this unfortunate situation yet (afaik), be proactive and borrow some experience from other docker-based services
+* readme: improve config examples 32e90859
+* improve serverlog entries regarding 403s b020fd4a
+* #132 mention fuse permissions in readme d9d2a092
+* traefik-example: fix disconnect during big uploads 6a9ffe7e
+* try to show an appropriate warning for media that the browser doesn't support playing 4ef35263
+  * was an attempt at detecting iphones failing to play high-color-precision webm files, but safari doesn't seem to realize itself that playback has failed, ah well 
+* copyparty.exe: update to python 3.12.9
+* update deps: dompurify 3.2.4
+
+
+
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  
+# 2025-0127-0140  `v1.16.11`  fix no-acode
+
+## 🧪 new features
+
+* u2c (commandline uploader): print download-links for uploaded files 1fe30363
+  * `-u` prints a list after all uploads finished
+  * `-ud` print during upload, after each file
+  * `-uf a.txt` writes them to `a.txt`
+
+## 🩹 bugfixes
+
+* [previous ver](https://github.com/9001/copyparty/releases/tag/v1.16.10) broke `--no-acode` (disable audio transcoding) by showing javascript errors 54a7256c
+  * reported on discord (thx)
+
+
+
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  
 # 2025-0125-1809  `v1.16.10`  iOS9 is fine too
 
 ## 🧪 new features

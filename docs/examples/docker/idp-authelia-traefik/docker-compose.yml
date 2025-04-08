@@ -23,6 +23,9 @@ services:
       - 'traefik.http.routers.copyparty.tls=true'
       - 'traefik.http.routers.copyparty.middlewares=authelia@docker'
     stop_grace_period: 15s  # thumbnailer is allowed to continue finishing up for 10s after the shutdown signal
+    environment:
+      LD_PRELOAD: /usr/lib/libmimalloc-secure.so.NOPE
+      # enable mimalloc by replacing "NOPE" with "2" for a nice speed-boost (will use twice as much ram)
 
   authelia:
     image: authelia/authelia:v4.38.0-beta3  # the config files in the authelia folder use the new syntax

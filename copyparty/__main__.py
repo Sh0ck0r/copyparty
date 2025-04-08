@@ -40,6 +40,7 @@ from .cfg import flagcats, onedash
 from .svchub import SvcHub
 from .util import (
     APPLESAN_TXT,
+    BAD_BOTS,
     DEF_EXP,
     DEF_MTE,
     DEF_MTH,
@@ -65,6 +66,7 @@ from .util import (
     load_resource,
     min_ex,
     pybin,
+    read_utf8,
     termsize,
     wrap,
 )
@@ -255,8 +257,7 @@ def get_srvname(verbose) -> str:
     if verbose:
         lprint("using hostname from {}\n".format(fp))
     try:
-        with open(fp, "rb") as f:
-            ret = f.read().decode("utf-8", "replace").strip()
+        return read_utf8(None, fp, True).strip()
     except:
         ret = ""
         namelen = 5
@@ -265,47 +266,18 @@ def get_srvname(verbose) -> str:
             ret = re.sub("[234567=]", "", ret)[:namelen]
         with open(fp, "wb") as f:
             f.write(ret.encode("utf-8") + b"\n")
+        return ret
 
-    return ret
 
-
-def get_fk_salt() -> str:
-    fp = os.path.join(E.cfg, "fk-salt.txt")
+def get_salt(name: str, nbytes: int) -> str:
+    fp = os.path.join(E.cfg, "%s-salt.txt" % (name,))
     try:
-        with open(fp, "rb") as f:
-            ret = f.read().strip()
+        return read_utf8(None, fp, True).strip()
     except:
-        ret = b64enc(os.urandom(18))
+        ret = b64enc(os.urandom(nbytes))
         with open(fp, "wb") as f:
             f.write(ret + b"\n")
-
-    return ret.decode("utf-8")
-
-
-def get_dk_salt() -> str:
-    fp = os.path.join(E.cfg, "dk-salt.txt")
-    try:
-        with open(fp, "rb") as f:
-            ret = f.read().strip()
-    except:
-        ret = b64enc(os.urandom(30))
-        with open(fp, "wb") as f:
-            f.write(ret + b"\n")
-
-    return ret.decode("utf-8")
-
-
-def get_ah_salt() -> str:
-    fp = os.path.join(E.cfg, "ah-salt.txt")
-    try:
-        with open(fp, "rb") as f:
-            ret = f.read().strip()
-    except:
-        ret = b64enc(os.urandom(18))
-        with open(fp, "wb") as f:
-            f.write(ret + b"\n")
-
-    return ret.decode("utf-8")
+        return ret.decode("utf-8")
 
 
 def ensure_locale() -> None:
@@ -1039,6 +1011,7 @@ def add_upload(ap):
     ap2.add_argument("--turbo", metavar="LVL", type=int, default=0, help="configure turbo-mode in up2k client; [\033[32m-1\033[0m] = forbidden/always-off, [\033[32m0\033[0m] = default-off and warn if enabled, [\033[32m1\033[0m] = default-off, [\033[32m2\033[0m] = on, [\033[32m3\033[0m] = on and disable datecheck")
     ap2.add_argument("--u2j", metavar="JOBS", type=int, default=2, help="web-client: number of file chunks to upload in parallel; 1 or 2 is good for low-latency (same-country) connections, 4-8 for android clients, 16 for cross-atlantic (max=64)")
     ap2.add_argument("--u2sz", metavar="N,N,N", type=u, default="1,64,96", help="web-client: default upload chunksize (MiB); sets \033[33mmin,default,max\033[0m in the settings gui. Each HTTP POST will aim for \033[33mdefault\033[0m, and never exceed \033[33mmax\033[0m. Cloudflare max is 96. Big values are good for cross-atlantic but may increase HDD fragmentation on some FS. Disable this optimization with [\033[32m1,1,1\033[0m]")
+    ap2.add_argument("--u2ow", metavar="NUM", type=int, default=0, help="web-client: default setting for when to replace/overwrite existing files; [\033[32m0\033[0m]=never, [\033[32m1\033[0m]=if-client-newer, [\033[32m2\033[0m]=always (volflag=u2ow)")
     ap2.add_argument("--u2sort", metavar="TXT", type=u, default="s", help="upload order; [\033[32ms\033[0m]=smallest-first, [\033[32mn\033[0m]=alphabetical, [\033[32mfs\033[0m]=force-s, [\033[32mfn\033[0m]=force-n -- alphabetical is a bit slower on fiber/LAN but makes it easier to eyeball if everything went fine")
     ap2.add_argument("--write-uplog", action="store_true", help="write POST reports to textfiles in working-directory")
 
@@ -1057,6 +1030,8 @@ def add_network(ap):
         ap2.add_argument("--reuseaddr", action="store_true", help="set reuseaddr on listening sockets on windows; allows rapid restart of copyparty at the expense of being able to accidentally start multiple instances")
     else:
         ap2.add_argument("--freebind", action="store_true", help="allow listening on IPs which do not yet exist, for example if the network interfaces haven't finished going up. Only makes sense for IPs other than '0.0.0.0', '127.0.0.1', '::', and '::1'. May require running as root (unless net.ipv6.ip_nonlocal_bind)")
+    ap2.add_argument("--wr-h-eps", metavar="PATH", type=u, default="", help="write list of listening-on ip:port to textfile at \033[33mPATH\033[0m when http-servers have started")
+    ap2.add_argument("--wr-h-aon", metavar="PATH", type=u, default="", help="write list of accessible-on ip:port to textfile at \033[33mPATH\033[0m when http-servers have started")
     ap2.add_argument("--s-thead", metavar="SEC", type=int, default=120, help="socket timeout (read request header)")
     ap2.add_argument("--s-tbody", metavar="SEC", type=float, default=128.0, help="socket timeout (read/write request/response bodies). Use 60 on fast servers (default is extremely safe). Disable with 0 if reverse-proxied for a 2%% speed boost")
     ap2.add_argument("--s-rd-sz", metavar="B", type=int, default=256*1024, help="socket read size in bytes (indirectly affects filesystem writes; recommendation: keep equal-to or lower-than \033[33m--iobuf\033[0m)")
@@ -1183,6 +1158,7 @@ def add_webdav(ap):
     ap2.add_argument("--dav-mac", action="store_true", help="disable apple-garbage filter -- allow macos to create junk files (._* and .DS_Store, .Spotlight-*, .fseventsd, .Trashes, .AppleDouble, __MACOS)")
     ap2.add_argument("--dav-rt", action="store_true", help="show symlink-destination's lastmodified instead of the link itself; always enabled for recursive listings (volflag=davrt)")
     ap2.add_argument("--dav-auth", action="store_true", help="force auth for all folders (required by davfs2 when only some folders are world-readable) (volflag=davauth)")
+    ap2.add_argument("--dav-ua1", metavar="PTN", type=u, default=r" kioworker/", help="regex of tricky user-agents which expect 401 from GET requests; disable with [\033[32mno\033[0m] or blank")
 
 
 def add_tftp(ap):
@@ -1249,6 +1225,7 @@ def add_yolo(ap):
     ap2 = ap.add_argument_group('yolo options')
     ap2.add_argument("--allow-csrf", action="store_true", help="disable csrf protections; let other domains/sites impersonate you through cross-site requests")
     ap2.add_argument("--getmod", action="store_true", help="permit ?move=[...] and ?delete as GET")
+    ap2.add_argument("--wo-up-readme", action="store_true", help="allow users with write-only access to upload logues and readmes without adding the _wo_ filename prefix (volflag=wo_up_readme)")
 
 
 def add_optouts(ap):
@@ -1263,11 +1240,17 @@ def add_optouts(ap):
     ap2.add_argument("-nih", action="store_true", help="no info hostname -- don't show in UI")
     ap2.add_argument("-nid", action="store_true", help="no info disk-usage -- don't show in UI")
     ap2.add_argument("-nb", action="store_true", help="no powered-by-copyparty branding in UI")
-    ap2.add_argument("--no-zip", action="store_true", help="disable download as zip/tar")
+    ap2.add_argument("--zipmaxn", metavar="N", type=u, default="0", help="reject download-as-zip if more than \033[33mN\033[0m files in total; optionally takes a unit suffix: [\033[32m256\033[0m], [\033[32m9K\033[0m], [\033[32m4G\033[0m] (volflag=zipmaxn)")
+    ap2.add_argument("--zipmaxs", metavar="SZ", type=u, default="0", help="reject download-as-zip if total download size exceeds \033[33mSZ\033[0m bytes; optionally takes a unit suffix: [\033[32m256M\033[0m], [\033[32m4G\033[0m], [\033[32m2T\033[0m] (volflag=zipmaxs)")
+    ap2.add_argument("--zipmaxt", metavar="TXT", type=u, default="", help="custom errormessage when download size exceeds max (volflag=zipmaxt)")
+    ap2.add_argument("--zipmaxu", action="store_true", help="authenticated users bypass the zip size limit (volflag=zipmaxu)")
+    ap2.add_argument("--zip-who", metavar="LVL", type=int, default=3, help="who can download as zip/tar? [\033[32m0\033[0m]=nobody, [\033[32m1\033[0m]=admins, [\033[32m2\033[0m]=authenticated-with-read-access, [\033[32m3\033[0m]=everyone-with-read-access (volflag=zip_who)\n\033[1;31mWARNING:\033[0m if a nested volume has a more restrictive value than a parent volume, then this will be \033[33mignored\033[0m if the download is initiated from the parent, more lenient volume")
+    ap2.add_argument("--ua-nozip", metavar="PTN", type=u, default=BAD_BOTS, help="regex of user-agents to reject from download-as-zip/tar; disable with [\033[32mno\033[0m] or blank")
+    ap2.add_argument("--no-zip", action="store_true", help="disable download as zip/tar; same as \033[33m--zip-who=0\033[0m")
     ap2.add_argument("--no-tarcmp", action="store_true", help="disable download as compressed tar (?tar=gz, ?tar=bz2, ?tar=xz, ?tar=gz:9, ...)")
     ap2.add_argument("--no-lifetime", action="store_true", help="do not allow clients (or server config) to schedule an upload to be deleted after a given time")
     ap2.add_argument("--no-pipe", action="store_true", help="disable race-the-beam (lockstep download of files which are currently being uploaded) (volflag=nopipe)")
-    ap2.add_argument("--no-db-ip", action="store_true", help="do not write uploader IPs into the database")
+    ap2.add_argument("--no-db-ip", action="store_true", help="do not write uploader-IP into the database; will also disable unpost, you may want \033[32m--forget-ip\033[0m instead (volflag=no_db_ip)")
 
 
 def add_safety(ap):
@@ -1394,7 +1377,7 @@ def add_transcoding(ap):
 
 def add_rss(ap):
     ap2 = ap.add_argument_group('RSS options')
-    ap2.add_argument("--rss", action="store_true", help="enable RSS output (experimental)")
+    ap2.add_argument("--rss", action="store_true", help="enable RSS output (experimental) (volflag=rss)")
     ap2.add_argument("--rss-nf", metavar="HITS", type=int, default=250, help="default number of files to return (url-param 'nf')")
     ap2.add_argument("--rss-fext", metavar="E,E", type=u, default="", help="default list of file extensions to include (url-param 'fext'); blank=all")
     ap2.add_argument("--rss-sort", metavar="ORD", type=u, default="m", help="default sort order (url-param 'sort'); [\033[32mm\033[0m]=last-modified [\033[32mu\033[0m]=upload-time [\033[32mn\033[0m]=filename [\033[32ms\033[0m]=filesize; Uppercase=oldest-first. Note that upload-time is 0 for non-uploaded files")
@@ -1410,6 +1393,7 @@ def add_db_general(ap, hcores):
     ap2.add_argument("-e2vu", action="store_true", help="on hash mismatch: update the database with the new hash")
     ap2.add_argument("-e2vp", action="store_true", help="on hash mismatch: panic and quit copyparty")
     ap2.add_argument("--hist", metavar="PATH", type=u, default="", help="where to store volume data (db, thumbs); default is a folder named \".hist\" inside each volume (volflag=hist)")
+    ap2.add_argument("--dbpath", metavar="PATH", type=u, default="", help="override where the volume databases are to be placed; default is the same as \033[33m--hist\033[0m (volflag=dbpath)")
     ap2.add_argument("--no-hash", metavar="PTN", type=u, default="", help="regex: disable hashing of matching absolute-filesystem-paths during e2ds folder scans (volflag=nohash)")
     ap2.add_argument("--no-idx", metavar="PTN", type=u, default=noidx, help="regex: disable indexing of matching absolute-filesystem-paths during e2ds folder scans (volflag=noidx)")
     ap2.add_argument("--no-dirsz", action="store_true", help="do not show total recursive size of folders in listings, show inode size instead; slightly faster (volflag=nodirsz)")
@@ -1417,6 +1401,7 @@ def add_db_general(ap, hcores):
     ap2.add_argument("--no-dhash", action="store_true", help="disable rescan acceleration; do full database integrity check -- makes the db ~5%% smaller and bootup/rescans 3~10x slower")
     ap2.add_argument("--re-dhash", action="store_true", help="force a cache rebuild on startup; enable this once if it gets out of sync (should never be necessary)")
     ap2.add_argument("--no-forget", action="store_true", help="never forget indexed files, even when deleted from disk -- makes it impossible to ever upload the same file twice -- only useful for offloading uploads to a cloud service or something (volflag=noforget)")
+    ap2.add_argument("--forget-ip", metavar="MIN", type=int, default=0, help="remove uploader-IP from database (and make unpost impossible) \033[33mMIN\033[0m minutes after upload, for GDPR reasons. Default [\033[32m0\033[0m] is never-forget. [\033[32m1440\033[0m]=day, [\033[32m10080\033[0m]=week, [\033[32m43200\033[0m]=month. (volflag=forget_ip)")
     ap2.add_argument("--dbd", metavar="PROFILE", default="wal", help="database durability profile; sets the tradeoff between robustness and speed, see \033[33m--help-dbd\033[0m (volflag=dbd)")
     ap2.add_argument("--xlink", action="store_true", help="on upload: check all volumes for dupes, not just the target volume (probably buggy, not recommended) (volflag=xlink)")
     ap2.add_argument("--hash-mt", metavar="CORES", type=int, default=hcores, help="num cpu cores to use for file hashing; set 0 or 1 for single-core hashing")
@@ -1447,11 +1432,13 @@ def add_db_metadata(ap):
 
 def add_txt(ap):
     ap2 = ap.add_argument_group('textfile options')
+    ap2.add_argument("--md-hist", metavar="TXT", type=u, default="s", help="where to store old version of markdown files; [\033[32ms\033[0m]=subfolder, [\033[32mv\033[0m]=volume-histpath, [\033[32mn\033[0m]=nope/disabled (volflag=md_hist)")
     ap2.add_argument("-mcr", metavar="SEC", type=int, default=60, help="the textfile editor will check for serverside changes every \033[33mSEC\033[0m seconds")
     ap2.add_argument("-emp", action="store_true", help="enable markdown plugins -- neat but dangerous, big XSS risk")
     ap2.add_argument("--exp", action="store_true", help="enable textfile expansion -- replace {{self.ip}} and such; see \033[33m--help-exp\033[0m (volflag=exp)")
     ap2.add_argument("--exp-md", metavar="V,V,V", type=u, default=DEF_EXP, help="comma/space-separated list of placeholders to expand in markdown files; add/remove stuff on the default list with +hdr_foo or /vf.scan (volflag=exp_md)")
     ap2.add_argument("--exp-lg", metavar="V,V,V", type=u, default=DEF_EXP, help="comma/space-separated list of placeholders to expand in prologue/epilogue files (volflag=exp_lg)")
+    ap2.add_argument("--ua-nodoc", metavar="PTN", type=u, default=BAD_BOTS, help="regex of user-agents to reject from viewing documents through ?doc=[...]; disable with [\033[32mno\033[0m] or blank")
 
 
 def add_og(ap):
@@ -1485,7 +1472,9 @@ def add_ui(ap, retry):
     ap2.add_argument("--hsortn", metavar="N", type=int, default=2, help="number of sorting rules to include in media URLs by default (volflag=hsortn)")
     ap2.add_argument("--unlist", metavar="REGEX", type=u, default="", help="don't show files matching \033[33mREGEX\033[0m in file list. Purely cosmetic! Does not affect API calls, just the browser. Example: [\033[32m\\.(js|css)$\033[0m] (volflag=unlist)")
     ap2.add_argument("--favico", metavar="TXT", type=u, default="c 000 none" if retry else "🎉 000 none", help="\033[33mfavicon-text\033[0m [ \033[33mforeground\033[0m [ \033[33mbackground\033[0m ] ], set blank to disable")
+    ap2.add_argument("--ext-th", metavar="E=VP", type=u, action="append", help="use thumbnail-image \033[33mVP\033[0m for file-extension \033[33mE\033[0m, example: [\033[32mexe=/.res/exe.png\033[0m] (volflag=ext_th)")
     ap2.add_argument("--mpmc", metavar="URL", type=u, default="", help="change the mediaplayer-toggle mouse cursor; URL to a folder with {2..5}.png inside (or disable with [\033[32m.\033[0m])")
+    ap2.add_argument("--spinner", metavar="TXT", type=u, default="🌲", help="\033[33memoji\033[0m or \033[33memoji,css\033[0m Example: [\033[32m🥖,padding:0\033[0m]")
     ap2.add_argument("--css-browser", metavar="L", type=u, default="", help="URL to additional CSS to include in the filebrowser html")
     ap2.add_argument("--js-browser", metavar="L", type=u, default="", help="URL to additional JS to include in the filebrowser html")
     ap2.add_argument("--js-other", metavar="L", type=u, default="", help="URL to additional JS to include in all other pages")
@@ -1546,9 +1535,9 @@ def run_argparse(
 
     cert_path = os.path.join(E.cfg, "cert.pem")
 
-    fk_salt = get_fk_salt()
-    dk_salt = get_dk_salt()
-    ah_salt = get_ah_salt()
+    fk_salt = get_salt("fk", 18)
+    dk_salt = get_salt("dk", 30)
+    ah_salt = get_salt("ah", 18)
 
     # alpine peaks at 5 threads for some reason,
     # all others scale past that (but try to avoid SMT),

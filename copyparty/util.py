@@ -31,6 +31,17 @@ from collections import Counter
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from queue import Queue
 
+try:
+    from zlib_ng import gzip_ng as gzip
+    from zlib_ng import zlib_ng as zlib
+
+    sys.modules["gzip"] = gzip
+    # sys.modules["zlib"] = zlib
+    # `- somehow makes tarfile 3% slower with default malloc, and barely faster with mimalloc
+except:
+    import gzip
+    import zlib
+
 from .__init__ import (
     ANYWIN,
     EXE,
@@ -233,6 +244,9 @@ else:
 SYMTIME = PY36 and os.utime in os.supports_follow_symlinks
 
 META_NOBOTS = '<meta name="robots" content="noindex, nofollow">\n'
+
+# smart enough to understand javascript while also ignoring rel="nofollow"
+BAD_BOTS = r"Barkrowler|bingbot|BLEXBot|Googlebot|GoogleOther|GPTBot|PetalBot|SeekportBot|SemrushBot|YandexBot"
 
 FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z"
 
@@ -448,6 +462,8 @@ UNHUMANIZE_UNITS = {
 
 VF_CAREFUL = {"mv_re_t": 5, "rm_re_t": 5, "mv_re_r": 0.1, "rm_re_r": 0.1}
 
+FN_EMB = set([".prologue.html", ".epilogue.html", "readme.md", "preadme.md"])
+
 
 def read_ram() -> tuple[float, float]:
     a = b = 0
@@ -592,6 +608,38 @@ except Exception as ex:
     b64dec = base64.b64decode  # type: ignore
     if not PY36:
         print("using fallback base64 codec due to %r" % (ex,))
+
+
+class NotUTF8(Exception):
+    pass
+
+
+def read_utf8(log: Optional["NamedLogger"], ap: Union[str, bytes], strict: bool) -> str:
+    with open(ap, "rb") as f:
+        buf = f.read()
+
+    try:
+        return buf.decode("utf-8", "strict")
+    except UnicodeDecodeError as ex:
+        eo = ex.start
+        eb = buf[eo : eo + 1]
+
+    if not strict:
+        t = "WARNING: The file [%s] is not using the UTF-8 character encoding; some characters in the file will be skipped/ignored. The first unreadable character was byte %r at offset %d. Please convert this file to UTF-8 by opening the file in your text-editor and saving it as UTF-8."
+        t = t % (ap, eb, eo)
+        if log:
+            log(t, 3)
+        else:
+            print(t)
+        return buf.decode("utf-8", "replace")
+
+    t = "ERROR: The file [%s] is not using the UTF-8 character encoding, and cannot be loaded. The first unreadable character was byte %r at offset %d. Please convert this file to UTF-8 by opening the file in your text-editor and saving it as UTF-8."
+    t = t % (ap, eb, eo)
+    if log:
+        log(t, 3)
+    else:
+        print(t)
+    raise NotUTF8(t)
 
 
 class Daemon(threading.Thread):
@@ -1419,8 +1467,6 @@ def stackmon(fp: str, ival: float, suffix: str) -> None:
         buf = st.encode("utf-8", "replace")
 
         if fp.endswith(".gz"):
-            import gzip
-
             # 2459b 2304b 2241b 2202b 2194b 2191b lv3..8
             # 0.06s 0.08s 0.11s 0.13s 0.16s 0.19s
             buf = gzip.compress(buf, compresslevel=6)
@@ -1499,6 +1545,12 @@ def vol_san(vols: list["VFS"], txt: bytes) -> bytes:
         txt = txt.replace(bhp, bvph)
         txt = txt.replace(bap.replace(b"\\", b"\\\\"), bvp)
         txt = txt.replace(bhp.replace(b"\\", b"\\\\"), bvph)
+
+        if vol.histpath != vol.dbpath:
+            bdp = vol.dbpath.encode("utf-8")
+            bdph = b"$db(/" + bvp + b")"
+            txt = txt.replace(bdp, bdph)
+            txt = txt.replace(bdp.replace(b"\\", b"\\\\"), bdph)
 
     if txt != txt0:
         txt += b"\r\nNOTE: filepaths sanitized; see serverlog for correct values"
@@ -3889,7 +3941,7 @@ def hidedir(dp) -> None:
 
 
 try:
-    if sys.version_info < (3, 10):
+    if sys.version_info < (3, 10) or os.environ.get("PRTY_NO_IMPRESO"):
         # py3.8 doesn't have .files
         # py3.9 has broken .is_file
         raise ImportError()
@@ -4021,9 +4073,22 @@ class WrongPostKey(Pebkac):
         self.datagen = datagen
 
 
-_: Any = (mp, BytesIO, quote, unquote, SQLITE_VER, JINJA_VER, PYFTPD_VER, PARTFTPY_VER)
+_: Any = (
+    gzip,
+    mp,
+    zlib,
+    BytesIO,
+    quote,
+    unquote,
+    SQLITE_VER,
+    JINJA_VER,
+    PYFTPD_VER,
+    PARTFTPY_VER,
+)
 __all__ = [
+    "gzip",
     "mp",
+    "zlib",
     "BytesIO",
     "quote",
     "unquote",

@@ -57,6 +57,8 @@ most editions support `x86`, `x86_64`, `armhf`, `aarch64`, `ppc64le`, `s390x`
 * `dj` doesn't run on `ppc64le`, `s390x`, `armhf`
 * `iv` doesn't run on `ppc64le`, `s390x`
 
+> NOTE: the following editions are unfinished experiments, and not published anywhere: djd djf djff dju
+
 
 ## detecting bpm and musical key
 
@@ -98,6 +100,14 @@ the following advice is best-effort and not guaranteed to be entirely correct
 # docker-specific recommendations
 
 * copyparty will generally create a `.hist` folder at the top of each volume, which contains the filesystem index, thumbnails and such. For performance reasons, but also just to keep things tidy, it might be convenient to store these inside the config folder instead. Add the line `hist: /cfg/hists/` inside the `[global]` section of your `copyparty.conf` to do this
+
+* if you want more performance, and you're OK with doubling the RAM usage, then consider enabling mimalloc **(maybe buggy)** with one of these:
+
+  * `-e LD_PRELOAD=/usr/lib/libmimalloc-secure.so.2` makes download-as-zip **3x** as fast, filesystem-indexing **1.5x** as fast, etc.
+
+  * `-e LD_PRELOAD=/usr/lib/libmimalloc-insecure.so.2` adds another 10% speed but makes it easier to exploit future vulnerabilities
+
+  * complete example: `podman run --rm -it -p 3923:3923 -v "$PWD:/w:z" -e LD_PRELOAD=/usr/lib/libmimalloc-secure.so.2 copyparty/ac -v /w::r`
 
 
 ## enabling the ftp server

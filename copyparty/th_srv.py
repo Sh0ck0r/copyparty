@@ -4,6 +4,7 @@ from __future__ import print_function, unicode_literals
 import hashlib
 import logging
 import os
+import re
 import shutil
 import subprocess as sp
 import threading
@@ -48,6 +49,9 @@ HAVE_WEBP = False
 
 EXTS_TH = set(["jpg", "webp", "png"])
 EXTS_AC = set(["opus", "owa", "caf", "mp3"])
+
+PTN_TS = re.compile("^-?[0-9a-f]{8,10}$")
+
 
 try:
     if os.environ.get("PRTY_NO_PIL"):
@@ -385,8 +389,12 @@ class ThumbSrv(object):
                     self.log(msg, c)
                     if getattr(ex, "returncode", 0) != 321:
                         if fun == funs[-1]:
-                            with open(ttpath, "wb") as _:
-                                pass
+                            try:
+                                with open(ttpath, "wb") as _:
+                                    pass
+                            except Exception as ex:
+                                t = "failed to create the file [%s]: %r"
+                                self.log(t % (ttpath, ex), 3)
                     else:
                         # ffmpeg may spawn empty files on windows
                         try:
@@ -399,7 +407,10 @@ class ThumbSrv(object):
 
             try:
                 wrename(self.log, ttpath, tpath, vn.flags)
-            except:
+            except Exception as ex:
+                if not os.path.exists(tpath):
+                    t = "failed to move  [%s]  to  [%s]:  %r"
+                    self.log(t % (ttpath, tpath, ex), 3)
                 pass
 
             with self.mutex:
@@ -991,6 +1002,8 @@ class ThumbSrv(object):
             # thumb file
             try:
                 b64, ts, ext = f.split(".")
+                if len(ts) > 8 and PTN_TS.match(ts):
+                    ts = "yeahokay"
                 if len(b64) != 24 or len(ts) != 8 or ext not in exts:
                     raise Exception()
             except:

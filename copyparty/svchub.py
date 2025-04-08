@@ -3,7 +3,6 @@ from __future__ import print_function, unicode_literals
 
 import argparse
 import errno
-import gzip
 import logging
 import os
 import re
@@ -63,6 +62,7 @@ from .util import (
     ansi_re,
     build_netmap,
     expat_ver,
+    gzip,
     load_ipu,
     min_ex,
     mp,
@@ -679,8 +679,8 @@ class SvcHub(object):
                 t += ", "
             t += "\033[0mNG: \033[35m" + sng
 
-        t += "\033[0m, see --deps"
-        self.log("dependencies", t, 6)
+        t += "\033[0m, see --deps (this is fine btw)"
+        self.log("optional-dependencies", t, 6)
 
     def _check_env(self) -> None:
         try:
@@ -763,13 +763,14 @@ class SvcHub(object):
             vl = [os.path.expandvars(os.path.expanduser(x)) for x in vl]
             setattr(al, k, vl)
 
-        for k in "lo hist ssl_log".split(" "):
+        for k in "lo hist dbpath ssl_log".split(" "):
             vs = getattr(al, k)
             if vs:
                 vs = os.path.expandvars(os.path.expanduser(vs))
                 setattr(al, k, vs)
 
-        for k in "sus_urls nonsus_urls".split(" "):
+        zs = "dav_ua1 sus_urls nonsus_urls ua_nodoc ua_nozip"
+        for k in zs.split(" "):
             vs = getattr(al, k)
             if not vs or vs == "no":
                 setattr(al, k, None)
@@ -1260,7 +1261,7 @@ class SvcHub(object):
                 raise
 
     def check_mp_support(self) -> str:
-        if MACOS:
+        if MACOS and not os.environ.get("PRTY_FORCE_MP"):
             return "multiprocessing is wonky on mac osx;"
         elif sys.version_info < (3, 3):
             return "need python 3.3 or newer for multiprocessing;"
@@ -1280,7 +1281,7 @@ class SvcHub(object):
             return False
 
         try:
-            if mp.cpu_count() <= 1:
+            if mp.cpu_count() <= 1 and not os.environ.get("PRTY_FORCE_MP"):
                 raise Exception()
         except:
             self.log("svchub", "only one CPU detected; multiprocessing disabled")

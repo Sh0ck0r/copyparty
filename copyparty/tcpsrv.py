@@ -151,9 +151,15 @@ class TcpSrv(object):
             if just_ll or self.args.ll:
                 ll_ok.add(ip.split("/")[0])
 
+        listening_on = []
+        for ip, ports in sorted(ok.items()):
+            for port in sorted(ports):
+                listening_on.append("%s %s" % (ip, port))
+
         qr1: dict[str, list[int]] = {}
         qr2: dict[str, list[int]] = {}
         msgs = []
+        accessible_on = []
         title_tab: dict[str, dict[str, int]] = {}
         title_vars = [x[1:] for x in self.args.wintitle.split(" ") if x.startswith("$")]
         t = "available @ {}://{}:{}/  (\033[33m{}\033[0m)"
@@ -168,6 +174,10 @@ class TcpSrv(object):
                     and port not in ok.get("0.0.0.0", [])
                 ):
                     continue
+
+                zs = "%s %s" % (ip, port)
+                if zs not in accessible_on:
+                    accessible_on.append(zs)
 
                 proto = " http"
                 if self.args.http_only:
@@ -218,6 +228,14 @@ class TcpSrv(object):
             self._set_wintitle(title_tab)
         else:
             print("\n", end="")
+
+        for fn, ls in (
+            (self.args.wr_h_eps, listening_on),
+            (self.args.wr_h_aon, accessible_on),
+        ):
+            if fn:
+                with open(fn, "wb") as f:
+                    f.write(("\n".join(ls)).encode("utf-8"))
 
         if self.args.qr or self.args.qrs:
             self.qr = self._qr(qr1, qr2)
